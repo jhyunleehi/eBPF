@@ -37,3 +37,14 @@ Learning eBPF Tutorial
 [learn-ebpf-tracing](https://www.brendangregg.com/blog/2019-01-01/learn-ebpf-tracing.html)
 
 [FS internals](https://www.youtube.com/watch?v=2SqPdM-YUaw&t=8s)
+
+
+
+```sh
+# apt install bpftrace 
+# apt install bpfcc-tools
+```
+
+#### compile build
+
+[https://www.flamingbytes.com/blog/how-to-install-bcc-on-ubuntu-22-04/](https://www.flamingbytes.com/blog/how-to-install-bcc-on-ubuntu-22-04/)
