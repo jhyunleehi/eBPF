@@ -4,6 +4,7 @@
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
+
         {
             "name": "(gdb) Launch",
             "type": "cppdbg",
@@ -62,6 +63,22 @@
             "cwd": "${workspaceRoot}",
             "valuesFormatting": "parseText",
             "stopAtEntry": true,
+        },
+        {
+            "name": "Python: sudo Run",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "python": "python3",
+            "sudo": true,
+            "justMyCode": false,
+            //"console": "internalConsole",               
+            "console": "integratedTerminal",            
+            "args": [
+                "-v",
+                "-s",
+                "--debuglevel==DEBUG"
+            ]
         }
     ]
 }

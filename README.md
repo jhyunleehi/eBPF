@@ -48,3 +48,17 @@ Learning eBPF Tutorial
 #### compile build
 
 [https://www.flamingbytes.com/blog/how-to-install-bcc-on-ubuntu-22-04/](https://www.flamingbytes.com/blog/how-to-install-bcc-on-ubuntu-22-04/)
+
+
+
+#### Linux Kernel Map
+
+[kernel map](https://makelinux.github.io/kernel/map/)
+
+## eBPF Applicatioon 
+
+* [eBPF Applicaion](https://ebpf.io/applications/)
+* Pixie 처럼 K8S 상태를 모니터링하는 기능을 참고하여 필요 기능 도출하는것.
+* [Pyroscope](https://github.com/grafana/pyroscope)
+결국 이것 처럼 구현하는 것이 목표가 될 것으로 예상 
+
