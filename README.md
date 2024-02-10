@@ -62,3 +62,63 @@ Learning eBPF Tutorial
 * [Pyroscope](https://github.com/grafana/pyroscope)
 결국 이것 처럼 구현하는 것이 목표가 될 것으로 예상 
 
+
+
+### 접근 방법 
+1. 정찬훈 책 BPF를 활용한 리눅스 시스템 트레이싱 구매
+2. bcc/doc/reference.md 참고 --> python 또는 C 개발 
+3. bcc/libbpf-tools  소스코드 참고
+4. https://ebpf.io/blog/categories/technology/ 여기서 제공하는 기술 자료들
+5. https://github.com/libbpf/libbpf
+6. Learning eBPF pdf 
+
+
+
+### hello.c
+
+#### perf 
+
+```sh
+$ vi hello.c
+#include <stdio.h>
+int VAL=0;
+int main(){
+    for (int i=0;i<10;i++){
+          printf("hello worldi [%d]\n", i);
+    }
+    return 0;
+}
+
+$ gcc -g -pg -o hello hello.c
+$ ./hello
+$ file ./hello
+$ ldd  ./hello$ 
+$ hexdump -C  ./hello | head -4
+$ xxd ./hello 
+$ readelf -h ./hello 
+$ readelf -l ./hello
+$ objdump -d ./hello | more 
+$ objdump -x ./hello | more 
+$ gdb  ./hello 
+(gdb) list
+(gdb) break 5
+(gdb) run 
+(gdb) info frame
+(gdb) info files 
+(gdb) info local 
+(gdb) info proc
+(gdb) info break 
+(gdb) print VAL
+(gdb) display i
+(gdb) disas main
+
+$ stat ./hello
+$ perf record -a -g  ./hello
+$ perf report --header  -F overhead,comm,parent
+$ perf stat ./hello
+$ strace ./hello 
+$ stat  ./hello
+$ sudo uftrace -K 5 ./hello
+$ sudo uftrace record -K 5 ./hello
+$ sudo uftrace tui 
+```
