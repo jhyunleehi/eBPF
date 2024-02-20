@@ -1,85 +1,36 @@
-# eBPF
+# Ubuntu 에서 bcc 
+The Ubuntu packages have slightly different names:
+* iovisor packages use bcc in the name (e.g. bcc-tools)
+*  Ubuntu packages use bpfcc (e.g. bpfcc-tools).
 
+* ubunut 환경에서 default package로 제공되는 모듈인 bpf-tools는 뭔가 라이브러가 잘 안맞는 부분이 있다. 
+* 따라서 아래 package 보다는 source를 다운 받아서 컴파일하고 install하는 방법이 정신 건강에 이롭다. 
 
-https://github.com/iovisor/bcc?tab=readme-ov-file
+## ubuntu package 설치 
+Ubuntu Packages Source packages and the binary packages produced from them can be found at packages.ubuntu.com.
+* ubunutu에서는 bpfcc-tools로 설치한다. 
 
-
-BPF 성능 분석 도구 - BPF 트레이싱을 통한 리눅스 시스템 관측가능성과 성능 향상  | 프로그래밍 인사이트 Programming Insight
-브렌던 그레그 (지은이),이호연 (옮긴이)인사이트2021-07-26
-
-### BPF Compiler Collection 
-[BCC](https://github.com/iovisor/bcc?tab=readme-ov-file)
-
-
-### vpftrace 
-
-[bpftrace](https://github.com/bpftrace/bpftrace?tab=readme-ov-file)
-
-
-
-[eBPF](https://ebpf.io/what-is-ebpf/)
-
-
-Learning eBPF Tutorial 
-
-[learning-ebpf-tutorial](https://isovalent.com/labs/learning-ebpf-tutorial/)
-
-
-### eBPF 살펴보기
-
-[eBPF살펴보기](https://velog.io/@hellonewtry/eBPF-%EC%82%B4%ED%8E%B4%EB%B3%B4%EA%B8%B0)
-
-
-[XRP: In-Kernel Storage Functions with eBPF (OSDI 2022)](XRP: In-Kernel Storage Functions with eBPF (OSDI 2022))
-[In-Kernel Storage Functions with eBPF](https://www.youtube.com/watch?v=n6_QaWATz2A)
-
-
-[learn-ebpf-tracing](https://www.brendangregg.com/blog/2019-01-01/learn-ebpf-tracing.html)
-
-[FS internals](https://www.youtube.com/watch?v=2SqPdM-YUaw&t=8s)
-
-
-
-```sh
-# apt install bpftrace 
-# apt install bpfcc-tools
 ```
+$ sudo apt install bpfcc-tools linux-headers-$(uname -r)
+$ sudo apt remove bpfcc-tools linux-headers-$(uname -r)
+$ sudo apt installlinux-headers-$(uname -r)
+```
+* 설치되면 `/usr/sbin` 아래에 bcc 실행파일이 설치된다.  
+```
+# apt list | grep  bpfcc-tools
+# apt show  bpfcc-tools
 
-#### compile build
+root@good:/usr/sbin# ls f*bpfcc
+filelife-bpfcc  fileslower-bpfcc  filetop-bpfcc  funccount-bpfcc  funcinterval-bpfcc  funclatency-bpfcc  funcslower-bpfcc
 
-[https://www.flamingbytes.com/blog/how-to-install-bcc-on-ubuntu-22-04/](https://www.flamingbytes.com/blog/how-to-install-bcc-on-ubuntu-22-04/)
+root@good:/usr/sbin# ls e*bpfcc
+execsnoop-bpfcc  exitsnoop-bpfcc  ext4dist-bpfcc  ext4slower-bpfcc
 
+root@good:/usr/sbin# ls b*bpfcc
+bashreadline-bpfcc  biolatency-bpfcc  biosnoop-bpfcc  bitesize-bpfcc  btrfsdist-bpfcc
+bindsnoop-bpfcc     biolatpcts-bpfcc  biotop-bpfcc    bpflist-bpfcc   btrfsslower-bpfcc
 
-
-#### Linux Kernel Map
-
-[kernel map](https://makelinux.github.io/kernel/map/)
-
-## eBPF Applicatioon 
-
-* [eBPF Applicaion](https://ebpf.io/applications/)
-* Pixie 처럼 K8S 상태를 모니터링하는 기능을 참고하여 필요 기능 도출하는것.
-* [Pyroscope](https://github.com/grafana/pyroscope)
-결국 이것 처럼 구현하는 것이 목표가 될 것으로 예상 
-
-
-
-### 접근 방법 
-1. 정찬훈 책 BPF를 활용한 리눅스 시스템 트레이싱 구매
-2. bcc/doc/reference.md 참고 --> python 또는 C 개발 
-3. bcc/libbpf-tools  소스코드 참고
-4. https://ebpf.io/blog/categories/technology/ 여기서 제공하는 기술 자료들
-5. https://github.com/libbpf/libbpf
-6. Learning eBPF pdf 
-7. python ebpf --> monitoring 
-
-
-### 모니터링 도구 golang 기반 
-https://github.com/pixie-io/pixie
-### 데이터 수집 처리 golang 
-https://github.com/cilium/ebpf
-
-
+```
 
 ## Ubunut - source 
 To build the toolchain from source, one needs:
@@ -95,6 +46,12 @@ To build the toolchain from source, one needs:
 $ sudo apt install -y zip bison build-essential cmake flex git libedit-dev \
   libllvm14 llvm-14-dev libclang-14-dev python3 zlib1g-dev libelf-dev libfl-dev python3-setuptools \
   liblzma-dev libdebuginfod-dev arping netperf iperf
+
+$ sudo apt remove -y zip bison build-essential cmake flex git libedit-dev \
+  libllvm14 llvm-14-dev libclang-14-dev python3 zlib1g-dev libelf-dev libfl-dev python3-setuptools \
+  liblzma-dev libdebuginfod-dev arping netperf iperf
+
+
 ```
 
 ### Install and compile BCC
@@ -111,6 +68,8 @@ $ sudo make install
 $ popd
 ```
 
+
+### error
 #### libbcc.so.0 undefined symbol bpf_module_create_b
 ```
 root@good:/usr/share/bcc# cd tools
