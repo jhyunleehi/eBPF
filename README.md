@@ -128,15 +128,66 @@ Traceback (most recent call last):
     func = self._FuncPtr((name_or_ordinal, self))
 AttributeError: /lib/x86_64-linux-gnu/libbcc.so.0: undefined symbol: bpf_module_create_b
 ```
+===>> .local에 설정된  bcc 라이브러리를 제거한다. 
+
+jhyunlee@Good:~/code/eBPF$ pip3 uninstall  bcc
+Found existing installation: bcc 0.1.10
+Uninstalling bcc-0.1.10:
+  Would remove:
+    /home/jhyunlee/.local/lib/python3.10/site-packages/bcc-0.1.10.dist-info/*
+    /home/jhyunlee/.local/lib/python3.10/site-packages/bcc/*
+Proceed (Y/n)? y
+  Successfully uninstalled bcc-0.1.10
+
+```
+* 시스템에 설정된 bcc 라이브러리는 ... 0.29 버젼인데 
+* .local에 설정된 버젼은  0.1.10 이라서 서로 차이가 있는 것 같다.
+* .local을 제겅하면 global system 라이브러리 사용하면서 정상적으로 디버깅이 잘된다. 
+* 그런데 소스 코드가 잘 안보인다.  그래서 이런 경우는 소스 코드 받은 것을  local /python3.10/site-packages에 넣어 줘야 한다. 
+```
+
+#### root 권한으로 수행하지 않으면 발생하는 Error 
+```
+jhyunlee@Good:/usr/share/bcc/tools$ ./opensnoop 
+could not open bpf map: infotmp, error: Operation not permitted
+Traceback (most recent call last):
+  File "/usr/share/bcc/tools/./opensnoop", line 387, in <module>
+    b = BPF(text=bpf_text)
+  File "/home/jhyunlee/.local/lib/python3.10/site-packages/bcc/__init__.py", line 479, in __init__
+    raise Exception("Failed to compile BPF module %s" % (src_file or "<text>"))
+Exception: Failed to compile BPF module <text>
+
+
+$ sudo ./opensnoop 
+```
+
+
+### vscode에서 bcc 소스 코드 디버깅 연결하기 
+
+* 일단 pip3 install bcc 이렇게 설치하면  ~/.local/lib/python3.10/site-packages 아래에 bcc 패키지가 설치된다.
+* 설치된 버젼이 bcc 0.10 버젼이라서 디버깅할 때 소스코드가 연결이 안된다.
+* .local siste-package bcc 를 제거하면  system 라이브러리로 연결이 되어서 소스 코드를 볼수 가 없다. 
+* 그래서 git으로 다운 받은 bcc 코드를  ~/.local/lib/python3.10/site-packages/bcc 아래에 복사한다. 
+
+```
+$ git clone https://github.com/iovisor/bcc.git
+$ 
+$ jhyunlee@Good:~/code/bcc/src/python/bcc$ ls
+__init__.py  containers.py  disassembler.py  libbcc.py  perf.py  syscall.py  table.py  tcp.py  usdt.py  utils.py  version.py
+$ cp  * /home/jhyunlee/code/bcc/src/python/bcc
+$ mv version.py.in version.py 
+```
+
+
+
+### python3 재설치는 하면 안된다.  
 ==> 모든  python 모듈 설치 제거
 ==> bpf package 모두제거  
-==> 그리고 재 설치 
+==> 그리고 재 설치 하면 대형 사고 발생한다.  
 ```
 # apt list | grep python | grep installed
 # apt list | grep bpf | grep installed
 ```
-
-### 기존 설치된  python 찌꺼기 모두 제거하고 다시 설치 한다. 
 
 
 #### build dependencies
@@ -157,6 +208,10 @@ $ make
 $ sudo make install
 $ popd
 ```
+
+
+
+
 ### python 재거하면 ubuntu 오류 문제 발생한다. 
 * python3 관련 된 패키지가 많기 때문에 아무것이나 삭제하면 좀 문제가 된다.
 * ubuntu 22.4 버젼 기본 설치하고 나면 python3에서 설정된 내용은 다음과 같다. 
@@ -294,6 +349,73 @@ Proceed (Y/n)? y
 * .local에 설정된 버젼은  0.1.10 이라서 서로 차이가 있는 것 같다.
 * .local을 제겅하면 global system 라이브러리 사용하면서 정상적으로 디버깅이 잘된다. 
 ```
+```
 root@Good:/usr/lib# find | grep bcc | grep dist
 ./python3/dist-packages/bcc-0.29.1+f7986688-py3.10.egg
+```
+#### instll bcc last version
+```
+jhyunlee@Good:~/code/eBPF$ pip3 install bcc==0.29.1
+Defaulting to user installation because normal site-packages is not writeable
+Requirement already satisfied: bcc==0.29.1 in /usr/lib/python3/dist-packages/bcc-0.29.1+f7986688-py3.10.egg (0.29.1+f7986688)
+```
+### site package 
+
+```
+hyunlee@Good:~/code/trade$ pip install bcc --target ~/.local/lib/python3.10/site-packages
+Collecting bcc
+  Using cached bcc-0.1.10-py2.py3-none-any.whl
+Collecting numpy (from bcc)
+  Downloading numpy-1.26.4-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (61 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 61.0/61.0 kB 3.5 MB/s eta 0:00:00
+Collecting traitlets (from bcc)
+  Using cached traitlets-5.14.1-py3-none-any.whl.metadata (10 kB)
+Collecting traittypes (from bcc)
+  Using cached traittypes-0.2.1-py2.py3-none-any.whl (8.6 kB)
+Downloading numpy-1.26.4-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (18.2 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 18.2/18.2 MB 11.3 MB/s eta 0:00:00
+Using cached traitlets-5.14.1-py3-none-any.whl (85 kB)
+Installing collected packages: traitlets, numpy, traittypes, bcc
+Successfully installed bcc-0.1.10 numpy-1.26.4 traitlets-5.14.1 traittypes-0.2.1
+WARNING: Target directory /home/jhyunlee/.local/lib/python3.10/site-packages/traitlets-5.14.1.dist-info already exists. Specify --upgrade to force replacement.
+WARNING: Target directory /home/jhyunlee/.local/lib/python3.10/site-packages/traittypes-0.2.1.dist-info already exists. Specify --upgrade to force replacement.
+WARNING: Target directory /home/jhyunlee/.local/lib/python3.10/site-packages/traittypes already exists. Specify --upgrade to force replacement.
+WARNING: Target directory /home/jhyunlee/.local/lib/python3.10/site-packages/numpy-1.26.4.dist-info already exists. Specify --upgrade to force replacement.
+WARNING: Target directory /home/jhyunlee/.local/lib/python3.10/site-packages/traitlets already exists. Specify --upgrade to force replacement.
+WARNING: Target directory /home/jhyunlee/.local/lib/python3.10/site-packages/numpy.libs already exists. Specify --upgrade to force replacement.
+WARNING: Target directory /home/jhyunlee/.local/lib/python3.10/site-packages/numpy already exists. Specify --upgrade to force replacement.
+jhyunlee@Good:~/code/trade$ pip install bcc --target ~/.local/lib/python3.10/site-packages
+ *  History restored 
+```
+
+#### can not uninstll python system package 
+```
+ jhyunlee@Good:~/code/eBPF$ sudo  pip3 uninstall  bcc
+Found existing installation: bcc 0.29.1+f7986688
+Not uninstalling bcc at /usr/lib/python3/dist-packages/bcc-0.29.1+f7986688-py3.10.egg, outside environment /usr
+Can't uninstall 'bcc'. No files were found to uninstall.
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
+```
+```
+jhyunlee@Good:~/code/eBPF$ pip3  install bcc --target ~/.local/lib/python3.10/site-packages
+Collecting bcc
+  Using cached bcc-0.1.10-py2.py3-none-any.whl
+Collecting numpy (from bcc)
+  Using cached numpy-1.26.4-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (61 kB)
+Collecting traitlets (from bcc)
+  Using cached traitlets-5.14.1-py3-none-any.whl.metadata (10 kB)
+Collecting traittypes (from bcc)
+  Using cached traittypes-0.2.1-py2.py3-none-any.whl (8.6 kB)
+Using cached numpy-1.26.4-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (18.2 MB)
+Using cached traitlets-5.14.1-py3-none-any.whl (85 kB)
+Installing collected packages: traitlets, numpy, traittypes, bcc
+Successfully installed bcc-0.1.10 numpy-1.26.4 traitlets-5.14.1 traittypes-0.2.1
+WARNING: Target directory /home/jhyunlee/.local/lib/python3.10/site-packages/traitlets-5.14.1.dist-info already exists. Specify --upgrade to force replacement.
+WARNING: Target directory /home/jhyunlee/.local/lib/python3.10/site-packages/traittypes-0.2.1.dist-info already exists. Specify --upgrade to force replacement.
+WARNING: Target directory /home/jhyunlee/.local/lib/python3.10/site-packages/traittypes already exists. Specify --upgrade to force replacement.
+WARNING: Target directory /home/jhyunlee/.local/lib/python3.10/site-packages/numpy-1.26.4.dist-info already exists. Specify --upgrade to force replacement.
+WARNING: Target directory /home/jhyunlee/.local/lib/python3.10/site-packages/traitlets already exists. Specify --upgrade to force replacement.
+WARNING: Target directory /home/jhyunlee/.local/lib/python3.10/site-packages/numpy.libs already exists. Specify --upgrade to force replacement.
+WARNING: Target directory /home/jhyunlee/.local/lib/python3.10/site-packages/numpy already exists. Specify --upgrade to force replacement.
+WARNING: Target directory /home/jhyunlee/.local/lib/python3.10/site-packages/bin already exists. Specify --upgrade to force replacement.
 ```
