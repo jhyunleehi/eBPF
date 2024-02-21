@@ -115,4 +115,53 @@ $ pushd src/python/
 $ make
 $ sudo make install
 $ popd
+
+$ sudo  ln -s /usr/bin/python3   /usr/bin/python
+$ cd /usr/share/bcc/tools
+$ pip3 install pytest
+$ pip3 install bcc
+$ sudo opensnoop
+```
+
+
+#### vscode 
+```
+        {
+            "name": "Python: sudo Run",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "python": "python3",
+            "sudo": true,
+            "justMyCode": false,
+            //"console": "internalConsole",               
+            "console": "integratedTerminal",            
+            "args": [
+                "-v",
+                "-s",
+                "--debuglevel==DEBUG"
+            ]
+        }
+```
+#### pip3 install bcc
+```
+jhyunlee@Good:~/code/eBPF$ pip3 install bcc 
+Defaulting to user installation because normal site-packages is not writeable
+Collecting bcc
+  Downloading bcc-0.1.10.tar.gz (9.6 kB)
+  Preparing metadata (setup.py) ... done
+Requirement already satisfied: numpy in /home/jhyunlee/.local/lib/python3.10/site-packages (from bcc) (1.26.4)
+Collecting traitlets (from bcc)
+  Downloading traitlets-5.14.1-py3-none-any.whl.metadata (10 kB)
+Collecting traittypes (from bcc)
+  Downloading traittypes-0.2.1-py2.py3-none-any.whl (8.6 kB)
+Downloading traitlets-5.14.1-py3-none-any.whl (85 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 85.4/85.4 kB 5.3 MB/s eta 0:00:00
+Building wheels for collected packages: bcc
+  Building wheel for bcc (setup.py) ... done
+  Created wheel for bcc: filename=bcc-0.1.10-py2.py3-none-any.whl size=4817 sha256=0b051ac34cec2505dcbdb3f25602bba32998634138d1a3d642e7fd8fa36a16c4
+  Stored in directory: /home/jhyunlee/.cache/pip/wheels/2a/5a/e3/a4713893ce4045449feb12b0444491dd1e5267c650d8faade5
+Successfully built bcc
+Installing collected packages: traitlets, traittypes, bcc
+Successfully installed bcc-0.1.10 traitlets-5.14.1 traittypes-0.2.1
 ```

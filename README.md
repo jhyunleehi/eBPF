@@ -264,3 +264,36 @@ python3/jammy-updates,jammy-security,now 3.10.6-1~22.04 amd64 [installed,automat
 ```
 
 
+#### error
+* ArgString 못찾는다.
+
+```
+Exception has occurred: ImportError       (note: full exception trace is shown but execution is paused at: _run_module_as_main)
+cannot import name 'ArgString' from 'bcc' (/home/jhyunlee/.local/lib/python3.10/site-packages/bcc/__init__.py)
+  File "/home/jhyunlee/code/eBPF/bcc/tools/opensnoop.py", line 24, in <module>
+    from bcc import ArgString, BPF
+  File "/usr/lib/python3.10/runpy.py", line 86, in _run_code
+    exec(code, run_globals)
+  File "/usr/lib/python3.10/runpy.py", line 196, in _run_module_as_main (Current frame)
+    return _run_code(code, main_globals, None,
+ImportError: cannot import name 'ArgString' from 'bcc' (/home/jhyunlee/.local/lib/python3.10/site-packages/bcc/__init__.py)
+```
+===>> .local에 설정된  bcc 라이브러리를 제거한다. 
+
+jhyunlee@Good:~/code/eBPF$ pip3 uninstall  bcc
+Found existing installation: bcc 0.1.10
+Uninstalling bcc-0.1.10:
+  Would remove:
+    /home/jhyunlee/.local/lib/python3.10/site-packages/bcc-0.1.10.dist-info/*
+    /home/jhyunlee/.local/lib/python3.10/site-packages/bcc/*
+Proceed (Y/n)? y
+  Successfully uninstalled bcc-0.1.10
+
+```
+* 시스템에 설정된 bcc 라이브러리는 ... 0.29 버젼인데 
+* .local에 설정된 버젼은  0.1.10 이라서 서로 차이가 있는 것 같다.
+* .local을 제겅하면 global system 라이브러리 사용하면서 정상적으로 디버깅이 잘된다. 
+```
+root@Good:/usr/lib# find | grep bcc | grep dist
+./python3/dist-packages/bcc-0.29.1+f7986688-py3.10.egg
+```
