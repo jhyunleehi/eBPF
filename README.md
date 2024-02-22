@@ -505,4 +505,52 @@ jhyunlee@Good:~/code/bpftool/src$ which bpftool
 /usr/local/sbin/bpftool
 ```
 
+### python3-bpfcc 라이브러리 삭제  
+* 컴파일한 bpftool bcc를 사용하기 때문에 
+* ubuntu package를 통해서 설치되는 라이브러리와 충돌이  발생한다. 
+* ubuntu package는 삭제하도록 한다.  
+```
+jhyunlee@Good:/usr/share/bcc/tools$ sudo  ./opensnoop 
+Traceback (most recent call last):
+  File "/usr/share/bcc/tools/./opensnoop", line 24, in <module>
+    from bcc import ArgString, BPF
+  File "/usr/lib/python3/dist-packages/bcc/__init__.py", line 27, in <module>
+    from .libbcc import lib, bcc_symbol, bcc_symbol_option, bcc_stacktrace_build_id, _SYM_CB_TYPE
+  File "/usr/lib/python3/dist-packages/bcc/libbcc.py", line 20, in <module>
+    lib.bpf_module_create_b.restype = ct.c_void_p
+  File "/usr/lib/python3.10/ctypes/__init__.py", line 387, in __getattr__
+    func = self.__getitem__(name)
+  File "/usr/lib/python3.10/ctypes/__init__.py", line 392, in __getitem__
+    func = self._FuncPtr((name_or_ordinal, self))
+AttributeError: /lib/x86_64-linux-gnu/libbcc.so.0: undefined symbol: bpf_module_create_b
+jhyunlee@Good:/usr/share/bcc/tools$ pip3 show  bcc
+Name: bcc
+Version: 0.1.10
+Summary: N-dim invertible BCC lattice
+Home-page: https://github.com/willsheffler/bcc
+Author: Will Sheffler
+Author-email: willsheffler@gmail.com
+License: Apache Software License 2.0
+Location: /home/jhyunlee/.local/lib/python3.10/site-packages
+Requires: numpy, traitlets, traittypes
+Required-by: 
 
+```
+
+```
+python3-bpfcc/jammy,jammy,now 0.18.0+ds-2 all [설치됨,자동-제거가능]
+jhyunlee@Good:/usr/share/bcc/tools$ sudo apt remove  python3-bpfcc
+패키지 목록을 읽는 중입니다... 완료
+의존성 트리를 만드는 중입니다... 완료
+상태 정보를 읽는 중입니다... 완료        
+다음 패키지가 자동으로 설치되었지만 더 이상 필요하지 않습니다:
+  ieee-data libbpfcc libclang-cpp11 libllvm11 python3-netaddr
+'sudo apt autoremove'를 이용하여 제거하십시오.
+다음 패키지를 지울 것입니다:
+  python3-bpfcc
+0개 업그레이드, 0개 새로 설치, 1개 제거 및 1개 업그레이드 안 함.
+이 작업 후 196 k바이트의 디스크 공간이 비워집니다.
+계속 하시겠습니까? [Y/n] y
+(데이터베이스 읽는중 ...현재 222860개의 파일과 디렉터리가 설치되어 있습니다.)
+python3-bpfcc (0.18.0+ds-2)를 제거합니다...
+```

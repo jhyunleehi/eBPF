@@ -393,3 +393,68 @@ $ sudo ls /sys/fs/bpf/hello
 $ sudo rm  /sys/fs/bpf/hello
 $ sudo bpftool prog show name hello
 ```
+
+## BPF to BPF call
+* bpf 프로그램에서 함수 호출 할 수 있는 기능 
+
+```c
+static __attribute((noinline)) int get_opcode(struct bpf_raw_tracepoint_args *ctx) {
+    return ctx->args[1];
+}
+```
+만약 선택권이 주어진다면, 이 예제에서 단 한 곳에서만 호출할 매우 간단한 함수를 컴파일러가 인라인화할 것입니다. 이것은 이 예제의 목적을 상실시키므로, 나는 컴파일러가 인라인화를 하지 않도록 강제하기 위해 __attribute((noinline))을 추가했습니다. 일반적인 경우에는 이것을 생략하고 컴파일러가 필요한 최적화를 수행하도록 하는 것이 좋습니다.
+
+
+```c
+#include <linux/bpf.h>
+#include "bpf/bpf_helpers.h"
+
+static __attribute((noinline)) int get_opcode(struct bpf_raw_tracepoint_args *ctx) {
+    return ctx->args[1];
+}
+
+SEC("raw_tp/")
+int hello(struct bpf_raw_tracepoint_args *ctx) {
+    int opcode = get_opcode(ctx);
+    bpf_printk("Syscall: %d", opcode);
+    return 0;
+}
+
+char LICENSE[] SEC("license") = "Dual BSD/GPL";
+```
+#### bpf-func
+```
+$ sudo  bpftool prog load hello-func.bpf.o /sys/fs/bpf/hello
+$ sudo ls -l /sys/fs/bpf/hello
+-rw------- 1 root root 0  2월 22 18:35 /sys/fs/bpf/hello
+
+$ sudo bpftool prog list name hello
+543: raw_tracepoint  name hello  tag 3d9eb0c23d4ab186  gpl
+        loaded_at 2024-02-22T18:35:42+0900  uid 0
+        xlated 80B  jited 68B  memlock 4096B  map_ids 49
+        btf_id 255
+```
+
+
+```
+$ sudo bpftool  prog dump xlated name hello
+int hello(struct bpf_raw_tracepoint_args * ctx):
+; int opcode = get_opcode(ctx);
+   0: (85) call pc+7#bpf_prog_cbacc90865b1b9a5_get_opcode
+; bpf_printk("Syscall: %d", opcode);
+   1: (18) r1 = map[id:49][0]+0
+   3: (b7) r2 = 12
+   4: (bf) r3 = r0
+   5: (85) call bpf_trace_printk#-108416
+; return 0;
+   6: (b7) r0 = 0
+   7: (95) exit
+int get_opcode(struct bpf_raw_tracepoint_args * ctx):
+; return ctx->args[1];
+   8: (79) r0 = *(u64 *)(r1 +8)
+; return ctx->args[1];
+   9: (95) exit
+```
+   * 여기에서 hello() eBPF 프로그램이 get_opcode()를 호출하는 것을 볼 수 있습니다. 오프셋 0에 있는 eBPF 명령어는 0x85로, 이는 "함수 호출"에 해당합니다. 다음 명령어를 실행하는 대신(pc+7), 실행은 7개의 명령어를 건너뛰어(offset 8에 있는 명령어) 이동합니다.
+   * get_opcode()의 바이트코드는 다음과 같습니다. 바이트코드에서 첫 번째 명령어는 오프셋 8에 있습니다.
+   * 함수 호출 명령은 호출된 함수가 종료될 때 호출 함수에서 실행이 계속될 수 있도록 현재 상태를 eBPF 가상 머신의 스택에 넣어야 합니다. 스택 크기는 512바이트로 제한되어 있으므로, BPF에서 BPF로의 호출은 매우 깊게 중첩될 수 없습니다.

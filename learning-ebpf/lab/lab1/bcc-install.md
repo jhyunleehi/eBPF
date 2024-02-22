@@ -182,5 +182,5 @@ jhyunlee@Good:~/code/eBPF$ pip3 uninstall  bcc
 * 그런데 소스 코드가 잘 안보인다.  그래서 이런 경우는 소스 코드 받은 것을  local /python3.10/site-packages에 넣어 줘야 한다. 
 * go 에서 vendor library 사용하는 것 처럼 local package 사용하는 구조 
 ```
-$ cp /home/jhyunlee/code/bcc/src/python/bcc  /home/jhyunlee/.local/lib/python3.10/site-packages/bcc
+$ cp -r /home/jhyunlee/code/bcc/src/python/bcc  /home/jhyunlee/.local/lib/python3.10/site-packages/bcc
 ```
