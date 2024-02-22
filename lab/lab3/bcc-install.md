@@ -87,9 +87,9 @@ Traceback (most recent call last):
     func = self._FuncPtr((name_or_ordinal, self))
 AttributeError: /lib/x86_64-linux-gnu/libbcc.so.0: undefined symbol: bpf_module_create_b
 ```
-==> 모든  python 모듈 설치 제거
+==> 모든  python 모듈 설치 제거하면 안된다. 
 ==> bpf package 모두제거  
-==> 그리고 재 설치 
+==> 그리고 재 설치 안된다. 
 ```
 # apt list | grep python | grep installed
 # apt list | grep bpf | grep installed
@@ -143,7 +143,9 @@ $ sudo opensnoop
             ]
         }
 ```
+
 #### pip3 install bcc
+* 이렇게 하면  소스 코드가  너무 낮은 버젼이 설치되어서 디버깅을 할 수 가 없다.  
 ```
 jhyunlee@Good:~/code/eBPF$ pip3 install bcc 
 Defaulting to user installation because normal site-packages is not writeable
@@ -164,4 +166,21 @@ Building wheels for collected packages: bcc
 Successfully built bcc
 Installing collected packages: traitlets, traittypes, bcc
 Successfully installed bcc-0.1.10 traitlets-5.14.1 traittypes-0.2.1
+```
+### vscode에서 bcc 디버깅하는 방법 
+
+
+#### libbcc.so.0 undefined symbol bpf_module_create_b
+===>> .local에 설정된  bcc 라이브러리를 제거한다. 
+
+```
+jhyunlee@Good:~/code/eBPF$ pip3 uninstall  bcc
+```
+* 시스템에 설정된 bcc 라이브러리는 ... 0.29 버젼인데 
+* .local에 설정된 버젼은  0.1.10 이라서 서로 차이가 있는 것 같다.
+* .local을 제겅하면 global system 라이브러리 사용하면서 정상적으로 디버깅이 잘된다. 
+* 그런데 소스 코드가 잘 안보인다.  그래서 이런 경우는 소스 코드 받은 것을  local /python3.10/site-packages에 넣어 줘야 한다. 
+* go 에서 vendor library 사용하는 것 처럼 local package 사용하는 구조 
+```
+$ cp /home/jhyunlee/code/bcc/src/python/bcc  /home/jhyunlee/.local/lib/python3.10/site-packages/bcc
 ```

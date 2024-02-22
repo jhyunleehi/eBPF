@@ -1,6 +1,8 @@
 {
     "files.associations": {
         "stdio.h": "c",
-        "bpf.h": "c"
-    }
+        "bpf.h": "c",
+        "bpf_helpers.h": "c"
+    },
+    "cmake.configureOnOpen": false
 }
