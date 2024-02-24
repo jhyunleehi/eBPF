@@ -79,8 +79,7 @@
             "program": "${file}",
             "python": "python3",
             "sudo": true,
-            "justMyCode": false,
-            //"console": "internalConsole",               
+            "justMyCode": false,            
             "console": "integratedTerminal",            
             "args": [
                 "-v",

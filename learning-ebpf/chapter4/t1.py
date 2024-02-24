@@ -40,10 +40,35 @@ int hello(void *ctx) {
  
    return 0;
 }
+
+int fnname_clone(void *ctx) {
+   struct data_t data = {}; 
+   struct user_msg_t *p;
+   char message[12] = "Called... clone.... ";
+
+   data.pid = bpf_get_current_pid_tgid() >> 32;
+   data.uid = bpf_get_current_uid_gid() & 0xFFFFFFFF;
+
+   bpf_get_current_comm(&data.command, sizeof(data.command));
+   
+   struct task_struct *t = (struct task_struct *)bpf_get_current_task();
+
+   p = config.lookup(&data.uid);
+   if (p != 0) {
+      bpf_probe_read_kernel(&data.message, sizeof(data.message), p->message);       
+   } else {
+      bpf_probe_read_kernel(&data.message, sizeof(data.message), t); 
+   }
+   output.perf_submit(ctx, &data, sizeof(data)); 
+ 
+   return 0;
+}
 """
 b = BPF(text=program) 
-syscall = b.get_syscall_fnname("execve")
-b.attach_kprobe(event=syscall, fn_name="hello")
+syscall_exec = b.get_syscall_fnname("execve")
+syscall_clone = b.get_syscall_fnname("clone")
+b.attach_kprobe(event=syscall_exec, fn_name="hello")
+b.attach_kprobe(event=syscall_clone, fn_name="fnname_clone")
 b["config"][ct.c_int(0)] = ct.create_string_buffer(b"Hey root!")
 b["config"][ct.c_int(501)] = ct.create_string_buffer(b"Hi user 501!")
  

@@ -1,6 +1,7 @@
 # bcc Python Developer Tutorial
 
-This tutorial is about developing [bcc](https://github.com/iovisor/bcc) tools and programs using the Python interface. There are two parts: observability then networking. Snippets are taken from various programs in bcc: see their files for licences.
+This tutorial is about developing [bcc](https://github.com/iovisor/bcc) tools and programs using the Python interface. 
+* There are two parts: observability then networking. Snippets are taken from various programs in bcc: see their files for licences.
 
 Also see the bcc developer's [reference_guide.md](reference_guide.md), and a tutorial for end-users of tools: [tutorial.md](tutorial.md). There is also a lua interface for bcc.
 
@@ -8,9 +9,29 @@ Also see the bcc developer's [reference_guide.md](reference_guide.md), and a tut
 
 This observability tutorial contains 17 lessons, and 46 enumerated things to learn.
 
+* vscode .launch.json
+```json
+{
+            "name": "Python: sudo Run",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "python": "python3",
+            "sudo": true,
+            "justMyCode": false,            
+            "console": "integratedTerminal",            
+            "args": [
+                "-v",
+                "-s",
+                "--debuglevel==DEBUG"
+            ]
+        }
+```        
+
 ### Lesson 1. Hello World
 
 Start by running [examples/hello_world.py](../examples/hello_world.py), while running some commands (eg, "ls") in another session. It should print "Hello, World!" for new processes. If not, start by fixing bcc: see [INSTALL.md](../INSTALL.md).
+* 가능하면 source 코드를 다운 받아서 실행한다. 
 
 ```
 # ./examples/hello_world.py
@@ -28,23 +49,57 @@ BPF(text='int kprobe__sys_clone(void *ctx) { bpf_trace_printk("Hello, World!\\n"
 
 There are six things to learn from this:
 
-1. ```text='...'```: This defines a BPF program inline. The program is written in C.
+1. `text='...'`: This defines a BPF program inline. The program is written in C.
 
-1. ```kprobe__sys_clone()```: This is a short-cut for kernel dynamic tracing via kprobes. If the C function begins with ``kprobe__``, the rest is treated as a kernel function name to instrument, in this case, ```sys_clone()```.
+2. `kprobe__sys_clone()`: kprobe__ 접두사로 시작하면 kprobes를 사용한다는 의미이고, 그 위에 붙은 것은 커널 함수를 의미한다.  This is a short-cut for kernel dynamic tracing via kprobes. If the C function begins with `kprobe__`, the rest is treated as a kernel function name to instrument, in this case, `sys_clone()`. `kprobe__` 은 kprobe (dynamic tracing of a kernel function call)을 기능을 제공한다.  `BPF.attach_kprobe()` python 함수를 이용해서 kernel 함수에 붙이는 기능을 수행한다.  
 
-1. ```void *ctx```: ctx has arguments, but since we aren't using them here, we'll just cast it to ```void *```.
+3. `void *ctx`: ctx has arguments, but since we aren't using them here, we'll just cast it to `void *`.
 
-1. ```bpf_trace_printk()```: A simple kernel facility for printf() to the common trace_pipe (/sys/kernel/debug/tracing/trace_pipe). This is ok for some quick examples, but has limitations: 3 args max, 1 %s only, and trace_pipe is globally shared, so concurrent programs will have clashing output. A better interface is via BPF_PERF_OUTPUT(), covered later.
+4. `bpf_trace_printk()`:  ftrace를 이용하는 /sys/kernel/debug/tracing/tracing_on 해서 ftrace 하면  /sys/kernle/debug/traice/trace_pipe 한다. 커널에서 printf 사용 기능. (/sys/kernel/debug/tracing/trace_pipe).단순하게 뭔가 출력할때 사용하는 것은 ok 이지만 최대 arg는 3개만 사용할 수 있는 제약이 있다. trace_pipe는 global share 하기 때문에 출력이 충돌된다. 아무튼 BPF_PERF_OUTPUT을 사용해야 한다. This is ok for some quick examples, but has limitations: 3 args max, 1 %s only, and trace_pipe is globally shared, so concurrent programs will have clashing output. A better interface is via BPF_PERF_OUTPUT(), covered later.
 
-1. ```return 0;```: Necessary formality (if you want to know why, see [#139](https://github.com/iovisor/bcc/issues/139)).
+5. `return 0;`: return에 대한 필요한 기본 요구사항, Necessary formality (if you want to know why, see [#139](https://github.com/iovisor/bcc/issues/139)).
 
-1. ```.trace_print()```: A bcc routine that reads trace_pipe and prints the output.
+6. `.trace_print()`: ptyhon 함수에서 BPF의 trace_print는  /sys/kernel/debug/tracing/trace_pipe에 있는 것을 출력 한다.  A bcc routine that reads trace_pipe and prints the output. 
+
 
 ### Lesson 2. sys_sync()
 
 Write a program that traces the sys_sync() kernel function. Print "sys_sync() called" when it runs. Test by running ```sync``` in another session while tracing. The hello_world.py program has everything you need for this.
 
 Improve it by printing "Tracing sys_sync()... Ctrl-C to end." when the program first starts. Hint: it's just Python.
+
+```py
+#!/usr/bin/python
+# Copyright (c) PLUMgrid, Inc.
+# Licensed under the Apache License, Version 2.0 (the "License")
+
+from bcc import BPF
+from bcc.utils import printb
+
+prog="""
+int sync(void *cts){
+    bpf_trace_printk("sync\\n");
+    return 0;
+}
+"""
+b=BPF(text=prog)
+b.attach_kprobe(event=b.get_syscall_fnname("sync"), fn_name="sync")
+print(f"Tracing sys_sync()... Ctrl-C to end.")
+
+while True:
+    try:
+        task,pid,cpu,flags,ts,msg=b.trace_fields()
+    except ValueError:
+        continue
+    except KeyboardInterrupt:
+        break
+    printb(b"%-18.9f %-16s %-6d %s" % (ts, task, pid, msg))
+    printb(b"%18.9f %16s %6d %s" % (ts, task, pid, msg))
+```
+* 이것을 구현해 보면 간단한게 다른 출력들과 혼합되어 나온다는 점이 좀 그렇다.
+* /sys/kernel/debug/tracing/trace_pipe 내용으로 출력이 나온 것을 다시 읽어서 python 라이브러리로 나오게 한다
+* kernel에서 나오는 데이터 들은 byte 데이터 들이라서 이것을 byte로 처리하는 작업들이 필요하다. 
+* 문자열들을 다시 int 또는 float 변환하는 작업들...
 
 ### Lesson 3. hello_fields.py
 
@@ -93,13 +148,60 @@ while 1:
 
 This is similar to hello_world.py, and traces new processes via sys_clone() again, but has a few more things to learn:
 
-1. ```prog =```: This time we declare the C program as a variable, and later refer to it. This is useful if you want to add some string substitutions based on command line arguments.
+1. `prog =`: This time we declare the C program as a variable, and later refer to it. CLI 기반에서 어떤 문자열을 대체하려고 할 때 좀 유용하다. This is useful if you want to add some string substitutions based on command line arguments.
 
-1. ```hello()```: Now we're just declaring a C function, instead of the ```kprobe__``` shortcut. We'll refer to this later. All C functions declared in the BPF program are expected to be executed on a probe, hence they all need to take a ```pt_reg* ctx``` as first argument. If you need to define some helper function that will not be executed on a probe, they need to be defined as ```static inline``` in order to be inlined by the compiler. Sometimes you would also need to add ```_always_inline``` function attribute to it.
+2. `hello()`: lession1에서 kprobe__ 접두사로 system call을 추적하는 대신에 C 함수를 구현한 것이다. 이 함수는 kbrobe에서 사용할 것이기 때문에 pt_reg* ctx를 파라미터를 지정해야 한다. 만약에  probe하는 기능을 사용하지 않으려면  static inline 을 표시행서 컴파일러에서 inline 적용하도록 해야 한다.  Now we're just declaring a C function, instead of the ```kprobe__``` shortcut. We'll refer to this later. All C functions declared in the BPF program are expected to be executed on a probe, hence they all need to take a `pt_reg* ctx` as first argument. If you need to define some helper function that will not be executed on a probe, they need to be defined as `static inline` in order to be inlined by the compiler. Sometimes you would also need to add `_always_inline` function attribute to it.
 
-1. ```b.attach_kprobe(event=b.get_syscall_fnname("clone"), fn_name="hello")```: Creates a kprobe for the kernel clone system call function, which will execute our defined hello() function. You can call attach_kprobe() more than once, and attach your C function to multiple kernel functions.
+3. `b.attach_kprobe(event=b.get_syscall_fnname("clone"), fn_name="hello")`: 커널 System Call중에서 new thread 생성할 때 clone이 사용되는데 이것이 호출되는 probe해서  hello 함수를 호출하도록 하는 기능을 구현한 것이다.  probe Creates a kprobe for the kernel clone system call function, which will execute our defined hello() function. You can call attach_kprobe() more than once, and attach your C function to multiple kernel functions.
 
-1. ```b.trace_fields()```: Returns a fixed set of fields from trace_pipe. Similar to trace_print(), this is handy for hacking, but for real tooling we should switch to BPF_PERF_OUTPUT().
+4. `b.trace_fields()`: BPF.trace_fields()함수를 호출하면 /sys/kernel/debug/tracing/trace_pipe에서 고정된 필드의 집합을 돌려 준다? 아무튼 나중에서는 BPF_PERF_OUPUT을 사용한다는 것이다.   Returns a fixed set of fields from trace_pipe. Similar to trace_print(), this is handy for hacking, but for real tooling we should switch to BPF_PERF_OUTPUT().
+
+아래 코드를 보면 trace_readline을 nonblocking 모드로 읽어와서..
+
+  ```py
+      def trace_fields(self, nonblocking=False):
+        """trace_fields(nonblocking=False)
+
+        Read from the kernel debug trace pipe and return a tuple of the
+        fields (task, pid, cpu, flags, timestamp, msg) or None if no
+        line was read (nonblocking=True)
+        """
+        while True:
+            line = self.trace_readline(nonblocking)디
+            if not line and nonblocking: return (None,) * 6
+            # don't print messages related to lost events
+            if line.startswith(b"CPU:"): continue
+            task = line[:16].lstrip()
+            line = line[17:]
+            ts_end = line.find(b":")
+            try:
+                pid, cpu, flags, ts = line[:ts_end].split()
+            except Exception as e:
+                continue
+            cpu = cpu[1:-1]
+            # line[ts_end:] will have ": [sym_or_addr]: msgs"
+            # For trace_pipe debug output, the addr typically
+            # is invalid (e.g., 0x1). For kernel 4.12 or earlier,
+            # if address is not able to match a kernel symbol,
+            # nothing will be printed out. For kernel 4.13 and later,
+            # however, the illegal address will be printed out.
+            # Hence, both cases are handled here.
+            line = line[ts_end + 1:]
+            sym_end = line.find(b":")
+            msg = line[sym_end + 2:]
+            try:
+                return (task, int(pid), int(cpu), flags, float(ts), msg)
+            except Exception as e:
+                return ("Unknown", 0, 0, "Unknown", 0.0, "Unknown")
+   ```             
+* line = self.trace_readline(nonblocking)의 리턴 값은 아래와 같은데 이것을 잘 짤라 내서 파싱해서 리턴 값으로 돌려 준다. json이나 html 이라면 파싱이 쉬울 텐데.. 이런 문자열 파싱은 나중에 꼭 문제 되던데... ㅎㅎ
+```   
+b'           <...>-322350  [010] ...21 223559.266945: bpf_trace_printk: Hello, World!'   
+b'322350  [010] ...21 223559.264003: bpf_trace_printk: Hello, World!'
+````
+
+
+
 
 ### Lesson 4. sync_timing.py
 

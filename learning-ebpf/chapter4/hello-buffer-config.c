@@ -1,9 +1,6 @@
-#!/usr/bin/python3  
-# -*- coding: utf-8 -*-
-from bcc import BPF
-import ctypes as ct
+#include <linux/bpf.h>
+#include <bpf/bpf_helpers.h>
 
-program = r"""
 struct user_msg_t {
    char message[12];
 };
@@ -40,17 +37,3 @@ int hello(void *ctx) {
  
    return 0;
 }
-"""
-b = BPF(text=program) 
-syscall = b.get_syscall_fnname("execve")
-b.attach_kprobe(event=syscall, fn_name="hello")
-b["config"][ct.c_int(0)] = ct.create_string_buffer(b"Hey root!")
-b["config"][ct.c_int(501)] = ct.create_string_buffer(b"Hi user 501!")
- 
-def print_event(cpu, data, size):  
-   data = b["output"].event(data)
-   print(f"{data.pid} {data.uid} {data.command.decode()} {data.message.decode()}")
- 
-b["output"].open_perf_buffer(print_event) 
-while True:   
-   b.perf_buffer_poll()

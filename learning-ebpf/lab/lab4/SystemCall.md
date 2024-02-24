@@ -90,17 +90,41 @@ b["config"][ct.c_int(0)] = ct.create_string_buffer(b"Hey root!")
 b["config"][ct.c_int(501)] = ct.create_string_buffer(b"Hi user 501!")
 ```
 
+#### kprobe event 어떻게 발견하는가?
+* kprobe 
+```
+$ sudo apt install linux-tools-common
+$ sudo apt install linux-tools-generic
+$ sudo apt install linux-tools-6.5.0-18-generic
+$ sudo apt install trace-cmd
+$ sudo trace-cmd list -l | grep  exec
+workqueue:workqueue_execute_end
+workqueue:workqueue_execute_start
+sched:sched_process_exec
+sched:sched_kthread_work_execute_end
+sched:sched_kthread_work_execute_start
+syscalls:sys_exit_kexec_load
+syscalls:sys_enter_kexec_load
+syscalls:sys_exit_kexec_file_load
+syscalls:sys_enter_kexec_file_load
+syscalls:sys_exit_execveat
+syscalls:sys_enter_execveat
+syscalls:sys_exit_execve
+syscalls:sys_enter_execve
+writeback:writeback_exec
+libata:ata_exec_command
+```
 
 
+#### SYSCALL 목록 확인
 
+```
+$ grep   __SYSCALL /usr/include/asm-generic/unistd.h
+$ grep   clone  /usr/include/asm-generic/unistd.h
 
+#define __NR_clone 220
+__SYSCALL(__NR_clone, sys_clone)
+#define __NR_clone3 435
+__SYSCALL(__NR_clone3, sys_clone3)
 
-
-cd /home/jhyunlee/code/eBPF ; 
-
-/usr/bin/env sudo 
--E /bin/python3 /home/jhyunlee/.vscode/extensions/ms-python.debugpy-2024.0.0-linux-x64/bundled/libs/debugpy/adapter/../../debugpy/launcher 48067 
--- /home/jhyunlee/code/eBPF/learning-ebpf/chapter4/hello-buffer-config.py 
--v -s --debuglevel==DEBUG 
-
-
+```

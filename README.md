@@ -1,27 +1,20 @@
 # eBPF
 
-
 https://github.com/iovisor/bcc?tab=readme-ov-file
 
-
-BPF 성능 분석 도구 - BPF 트레이싱을 통한 리눅스 시스템 관측가능성과 성능 향상  | 프로그래밍 인사이트 Programming Insight
-브렌던 그레그 (지은이),이호연 (옮긴이)인사이트2021-07-26
+* BPF 성능 분석 도구 - BPF 트레이싱을 통한 리눅스 시스템 관측가능성과 성능 향상  
+* 프로그래밍 인사이트 Programming Insight
+* 브렌던 그레그 (지은이),이호연 (옮긴이)인사이트2021-07-26
 
 ### BPF Compiler Collection 
 [BCC](https://github.com/iovisor/bcc?tab=readme-ov-file)
 
-
 ### vpftrace 
-
 [bpftrace](https://github.com/bpftrace/bpftrace?tab=readme-ov-file)
-
-
-
 [eBPF](https://ebpf.io/what-is-ebpf/)
 
 
 Learning eBPF Tutorial 
-
 [learning-ebpf-tutorial](https://isovalent.com/labs/learning-ebpf-tutorial/)
 
 
@@ -32,10 +25,7 @@ Learning eBPF Tutorial
 
 [XRP: In-Kernel Storage Functions with eBPF (OSDI 2022)](XRP: In-Kernel Storage Functions with eBPF (OSDI 2022))
 [In-Kernel Storage Functions with eBPF](https://www.youtube.com/watch?v=n6_QaWATz2A)
-
-
 [learn-ebpf-tracing](https://www.brendangregg.com/blog/2019-01-01/learn-ebpf-tracing.html)
-
 [FS internals](https://www.youtube.com/watch?v=2SqPdM-YUaw&t=8s)
 
 
@@ -459,8 +449,6 @@ www.naver.com.nheos.com. 12	IN	A	223.130.195.200
 ```
 
 
-
-
 ### bpftool 컴파일 설치   
 * /home/jhyunlee/code/eBPF/bcc/libbpf-tools/bpftool
 
@@ -509,7 +497,7 @@ jhyunlee@Good:~/code/bpftool/src$ which bpftool
 * 컴파일한 bpftool bcc를 사용하기 때문에 
 * ubuntu package를 통해서 설치되는 라이브러리와 충돌이  발생한다. 
 * ubuntu package는 삭제하도록 한다.  
-```
+```sh
 jhyunlee@Good:/usr/share/bcc/tools$ sudo  ./opensnoop 
 Traceback (most recent call last):
   File "/usr/share/bcc/tools/./opensnoop", line 24, in <module>
@@ -534,10 +522,9 @@ License: Apache Software License 2.0
 Location: /home/jhyunlee/.local/lib/python3.10/site-packages
 Requires: numpy, traitlets, traittypes
 Required-by: 
-
 ```
 
-```
+```sh
 python3-bpfcc/jammy,jammy,now 0.18.0+ds-2 all [설치됨,자동-제거가능]
 jhyunlee@Good:/usr/share/bcc/tools$ sudo apt remove  python3-bpfcc
 패키지 목록을 읽는 중입니다... 완료
@@ -554,3 +541,10 @@ jhyunlee@Good:/usr/share/bcc/tools$ sudo apt remove  python3-bpfcc
 (데이터베이스 읽는중 ...현재 222860개의 파일과 디렉터리가 설치되어 있습니다.)
 python3-bpfcc (0.18.0+ds-2)를 제거합니다...
 ```
+
+
+#### vscode 편집기에서 Explorer로 가고 싶을 때
+* file open : ctl-p
+* explorer : ctl-shift-e
+* reveal file in explorer : ctl-shift-p type reveal 
+
