@@ -299,8 +299,11 @@ static __u64 (*bpf_ktime_get_ns)(void) = (void *) 5;
 
 
 ## Lesson 5. sync_count.py
-
+위의 예제에서는 delta 값이  if (delta < 1,000,000,000) ns 이하 일때 만 즉 1초 이하 일때 만 bpf_trace_printk로 출력해서  /sys/kernel/debug/trace/trace_pipe에 출력하도록 하고 있다. 이것을  모두 출력하도록 수정하라는 이야기...
 Modify the sync_timing.py program (prior lesson) to store the count of all kernel sync system calls (both fast and slow), and print it with the output. This count can be recorded in the BPF program by adding a new key index to the existing hash.
+
+
+
 
 ## Lesson 6. disksnoop.py
 
