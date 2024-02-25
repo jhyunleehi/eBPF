@@ -5,7 +5,7 @@ This tutorial is about developing [bcc](https://github.com/iovisor/bcc) tools an
 
 Also see the bcc developer's [reference_guide.md](reference_guide.md), and a tutorial for end-users of tools: [tutorial.md](tutorial.md). There is also a lua interface for bcc.
 
-## Observability
+* Observability
 
 This observability tutorial contains 17 lessons, and 46 enumerated things to learn.
 
@@ -28,7 +28,7 @@ This observability tutorial contains 17 lessons, and 46 enumerated things to lea
         }
 ```        
 
-### Lesson 1. Hello World
+## Lesson 1. Hello World
 
 Start by running [examples/hello_world.py](../examples/hello_world.py), while running some commands (eg, "ls") in another session. It should print "Hello, World!" for new processes. If not, start by fixing bcc: see [INSTALL.md](../INSTALL.md).
 * 가능하면 source 코드를 다운 받아서 실행한다. 
@@ -46,9 +46,8 @@ Here's the code for hello_world.py:
 from bcc import BPF
 BPF(text='int kprobe__sys_clone(void *ctx) { bpf_trace_printk("Hello, World!\\n"); return 0; }').trace_print()
 ```
-
+### 해설
 There are six things to learn from this:
-
 1. `text='...'`: This defines a BPF program inline. The program is written in C.
 
 2. `kprobe__sys_clone()`: kprobe__ 접두사로 시작하면 kprobes를 사용한다는 의미이고, 그 위에 붙은 것은 커널 함수를 의미한다.  This is a short-cut for kernel dynamic tracing via kprobes. If the C function begins with `kprobe__`, the rest is treated as a kernel function name to instrument, in this case, `sys_clone()`. `kprobe__` 은 kprobe (dynamic tracing of a kernel function call)을 기능을 제공한다.  `BPF.attach_kprobe()` python 함수를 이용해서 kernel 함수에 붙이는 기능을 수행한다.  
@@ -62,7 +61,7 @@ There are six things to learn from this:
 6. `.trace_print()`: ptyhon 함수에서 BPF의 trace_print는  /sys/kernel/debug/tracing/trace_pipe에 있는 것을 출력 한다.  A bcc routine that reads trace_pipe and prints the output. 
 
 
-### Lesson 2. sys_sync()
+## Lesson 2. sys_sync()
 
 Write a program that traces the sys_sync() kernel function. Print "sys_sync() called" when it runs. Test by running ```sync``` in another session while tracing. The hello_world.py program has everything you need for this.
 
@@ -96,12 +95,13 @@ while True:
     printb(b"%-18.9f %-16s %-6d %s" % (ts, task, pid, msg))
     printb(b"%18.9f %16s %6d %s" % (ts, task, pid, msg))
 ```
-* 이것을 구현해 보면 간단한게 다른 출력들과 혼합되어 나온다는 점이 좀 그렇다.
+* 이것을 간단한게 구현해 보면 다른 출력들과 섞어져서  나온다는 점이 좀 그렇다.
 * /sys/kernel/debug/tracing/trace_pipe 내용으로 출력이 나온 것을 다시 읽어서 python 라이브러리로 나오게 한다
 * kernel에서 나오는 데이터 들은 byte 데이터 들이라서 이것을 byte로 처리하는 작업들이 필요하다. 
 * 문자열들을 다시 int 또는 float 변환하는 작업들...
+* 여기서 printb는 bcc의 함수이다.  
 
-### Lesson 3. hello_fields.py
+## Lesson 3. hello_fields.py
 
 This program is in [examples/tracing/hello_fields.py](../examples/tracing/hello_fields.py). Sample output (run commands in another session):
 
@@ -156,6 +156,7 @@ This is similar to hello_world.py, and traces new processes via sys_clone() agai
 
 4. `b.trace_fields()`: BPF.trace_fields()함수를 호출하면 /sys/kernel/debug/tracing/trace_pipe에서 고정된 필드의 집합을 돌려 준다? 아무튼 나중에서는 BPF_PERF_OUPUT을 사용한다는 것이다.   Returns a fixed set of fields from trace_pipe. Similar to trace_print(), this is handy for hacking, but for real tooling we should switch to BPF_PERF_OUTPUT().
 
+#### BPF.trace_fields
 아래 코드를 보면 trace_readline을 nonblocking 모드로 읽어와서..
 
   ```py
@@ -198,14 +199,14 @@ This is similar to hello_world.py, and traces new processes via sys_clone() agai
 ```   
 b'           <...>-322350  [010] ...21 223559.266945: bpf_trace_printk: Hello, World!'   
 b'322350  [010] ...21 223559.264003: bpf_trace_printk: Hello, World!'
-````
+```
 
 
 
 
-### Lesson 4. sync_timing.py
+## Lesson 4. sync_timing.py
 
-Remember the days of sysadmins typing ```sync``` three times on a slow console before ```reboot```, to give the first asynchronous sync time to complete? Then someone thought ```sync;sync;sync``` was clever, to run them all on one line, which became industry practice despite defeating the original purpose! And then sync became synchronous, so more reasons it was silly. Anyway.
+Remember the days of sysadmins typing `sync` three times on a slow console before `reboot`, to give the first asynchronous sync time to complete? Then someone thought `sync;sync;sync` was clever, to run them all on one line, which became industry practice despite defeating the original purpose! And then sync became synchronous, so more reasons it was silly. Anyway.
 
 The following example times how quickly the ```do_sync``` function is called, and prints output if it has been called more recently than one second ago. A ```sync;sync;sync``` will print output for the 2nd and 3rd sync's:
 
@@ -268,19 +269,40 @@ while 1:
 
 Things to learn:
 
-1. ```bpf_ktime_get_ns()```: Returns the time as nanoseconds.
-1. ```BPF_HASH(last)```: Creates a BPF map object that is a hash (associative array), called "last". We didn't specify any further arguments, so it defaults to key and value types of u64.
-1. ```key = 0```: We'll only store one key/value pair in this hash, where the key is hardwired to zero.
-1. ```last.lookup(&key)```: Lookup the key in the hash, and return a pointer to its value if it exists, else NULL. We pass the key in as an address to a pointer.
-1. ```if (tsp != NULL) {```: The verifier requires that pointer values derived from a map lookup must be checked for a null value before they can be dereferenced and used.
-1. ```last.delete(&key)```: Delete the key from the hash. This is currently required because of [a kernel bug in `.update()`](https://git.kernel.org/cgit/linux/kernel/git/davem/net.git/commit/?id=a6ed3ea65d9868fdf9eff84e6fe4f666b8d14b02) (fixed in 4.8.10).
-1. ```last.update(&key, &ts)```: Associate the value in the 2nd argument to the key, overwriting any previous value. This records the timestamp.
+1. `bpf_ktime_get_ns()`: Returns the time as nanoseconds. 시스템 부팅 이후로 부터 경과된 nano 시간을 제공한다.  bpf_helper 함수이다.  
+```c
+#include <bpf/bpf_helpers.h>
+/*
+ * bpf_ktime_get_ns
+ * 	Return the time elapsed since system boot, in nanoseconds.
+ * 	Does not include time the system was suspended.
+ * 	See: **clock_gettime**\ (**CLOCK_MONOTONIC**)
+ * Returns : 	Current *ktime*.
+ */
+static __u64 (*bpf_ktime_get_ns)(void) = (void *) 5;
+```
+2. `BPF_HASH(last)`: Creates a BPF map object that is a hash (associative array), called "last". We didn't specify any further arguments, so it defaults to key and value types of u64. BPF 맵 객체를 만든다. map의 이름만 사용하고, key 값은 unsigined 64를 사용한다.  그런데 이 BPF_HASH는 macro 처럼 보이는데 어디에 이것을 정의하고 있는지 찾을 수 없다.  어딘가에는 있겠지..
+3. `key = 0`: We'll only store one key/value pair in this hash, where the key is hardwired to zero.
+4. `last.lookup(&key)`: Lookup the key in the hash, and return a pointer to its value if it exists, else NULL. We pass the key in as an address to a pointer. hash 맵에 대해서 key값으로 조회를 해서 valuse가 있으면 pointer가 리턴되고 없으면 NULL이 리턴된다. 
+5. `if (tsp != NULL) {`: The verifier requires that pointer values derived from a map lookup must be checked for a null value before they can be dereferenced and used. 
+6. `last.delete(&key)`: Delete the key from the hash. This is currently required because of [a kernel bug in `.update()`](https://git.kernel.org/cgit/linux/kernel/git/davem/net.git/commit/?id=a6ed3ea65d9868fdf9eff84e6fe4f666b8d14b02) (fixed in 4.8.10). 여기서 해당 key를 대상으로 삭제를  꼭해야 하는지? 어차피  last.update를 통해서 값을 갱신하기 때문에 필요 없는 코드 아니가?. 뭔가 ...교육적 차원에서 last.delete 하는 것은 아닌가?
 
-### Lesson 5. sync_count.py
+7. `last.update(&key, &ts)`: Associate the value in the 2nd argument to the key, overwriting any previous value. This records the timestamp.
+
+* 출력이 되는 것은 bpf_trace_printk에 써 놓은 데이터가 나오는 것..
+* hash map에 써 놓은 데이터를 출력 받아야 할텐데..
+
+#### BPF_HASH
+#### hashmap.lookup(key)
+#### hashmap.delete(kdy)
+#### hashmap.update(key,value)
+
+
+## Lesson 5. sync_count.py
 
 Modify the sync_timing.py program (prior lesson) to store the count of all kernel sync system calls (both fast and slow), and print it with the output. This count can be recorded in the BPF program by adding a new key index to the existing hash.
 
-### Lesson 6. disksnoop.py
+## Lesson 6. disksnoop.py
 
 Browse the [examples/tracing/disksnoop.py](../examples/tracing/disksnoop.py) program to see what is new. Here is some sample output:
 
@@ -345,7 +367,7 @@ Things to learn:
 
 This is a pretty interesting program, and if you can understand all the code, you'll understand many important basics. We're still using the bpf_trace_printk() hack, so let's fix that next.
 
-### Lesson 7. hello_perf_output.py
+## Lesson 7. hello_perf_output.py
 
 Let's finally stop using bpf_trace_printk() and use the proper BPF_PERF_OUTPUT() interface. This will also mean we stop getting the free trace_field() members like PID and timestamp, and will need to fetch them directly. Sample output while commands are run in another session:
 
@@ -426,11 +448,11 @@ Things to learn:
 1. ```b["events"].open_perf_buffer(print_event)```: Associate the Python ```print_event``` function with the ```events``` stream.
 1. ```while 1: b.perf_buffer_poll()```: Block waiting for events.
 
-### Lesson 8. sync_perf_output.py
+## Lesson 8. sync_perf_output.py
 
 Rewrite sync_timing.py, from a prior lesson, to use ```BPF_PERF_OUTPUT```.
 
-### Lesson 9. bitehist.py
+## Lesson 9. bitehist.py
 
 The following tool records a histogram of disk I/O sizes. Sample output:
 
@@ -496,11 +518,11 @@ New things to learn:
 1. ```bpf_log2l()```: Returns the log-2 of the provided value. This becomes the index of our histogram, so that we're constructing a power-of-2 histogram.
 1. ```b["dist"].print_log2_hist("kbytes")```: Prints the "dist" histogram as power-of-2, with a column header of "kbytes". The only data transferred from kernel to user space is the bucket counts, making this efficient.
 
-### Lesson 10. disklatency.py
+## Lesson 10. disklatency.py
 
 Write a program that times disk I/O, and prints a histogram of their latency. Disk I/O instrumentation and timing can be found in the disksnoop.py program from a prior lesson, and histogram code can be found in bitehist.py from a prior lesson.
 
-### Lesson 11. vfsreadlat.py
+## Lesson 11. vfsreadlat.py
 
 This example is split into separate Python and C files. Example output:
 
@@ -548,7 +570,7 @@ Browse the code in [examples/tracing/vfsreadlat.py](../examples/tracing/vfsreadl
 1. ```b.attach_kretprobe(event="vfs_read", fn_name="do_return")```: Attaches the BPF C function ```do_return()``` to the return of the kernel function ```vfs_read()```. This is a kretprobe: instrumenting the return from a function, rather than its entry.
 1. ```b["dist"].clear()```: Clears the histogram.
 
-### Lesson 12. urandomread.py
+## Lesson 12. urandomread.py
 
 Tracing while a ```dd if=/dev/urandom of=/dev/null bs=8k count=5``` is run:
 
@@ -614,11 +636,11 @@ print fmt: "got_bits %d nonblocking_pool_entropy_left %d input_entropy_left %d",
 
 In this case, we were printing the ```got_bits``` member.
 
-### Lesson 13. disksnoop.py fixed
+## Lesson 13. disksnoop.py fixed
 
 Convert disksnoop.py from a previous lesson to use the ```block:block_rq_issue``` and ```block:block_rq_complete``` tracepoints.
 
-### Lesson 14. strlen_count.py
+## Lesson 14. strlen_count.py
 
 This program instruments a user-level function, the ```strlen()``` library function, and frequency counts its string argument. Example output:
 
@@ -701,7 +723,7 @@ Things to learn:
 1. ```PT_REGS_PARM1(ctx)```: This fetches the first argument to ```strlen()```, which is the string.
 1. ```b.attach_uprobe(name="c", sym="strlen", fn_name="count")```: Attach to library "c" (if this is the main program, use its pathname), instrument the user-level function ```strlen()```, and on execution call our C function ```count()```.
 
-### Lesson 15. nodejs_http_server.py
+## Lesson 15. nodejs_http_server.py
 
 This program instruments a user statically-defined tracing (USDT) probe, which is the user-level version of a kernel tracepoint. Sample output:
 
@@ -758,7 +780,7 @@ Things to learn:
 1. ```u.enable_probe(probe="http__server__request", fn_name="do_trace")```: Attach our ```do_trace()``` BPF C function to the Node.js ```http__server__request``` USDT probe.
 1. ```b = BPF(text=bpf_text, usdt_contexts=[u])```: Need to pass in our USDT object, ```u```, to BPF object creation.
 
-### Lesson 16. task_switch.c
+## Lesson 16. task_switch.c
 
 This is an older tutorial included as a bonus lesson. Use this for recap and to reinforce what you've already learned.
 
@@ -822,12 +844,10 @@ for k, v in b["stats"].items():
 
 These programs can be found in the files [examples/tracing/task_switch.c](../examples/tracing/task_switch.c) and [examples/tracing/task_switch.py](../examples/tracing/task_switch.py) respectively.
 
-### Lesson 17. Further Study
+## Lesson 17. Further Study
 
 For further study, see Sasha Goldshtein's [linux-tracing-workshop](https://github.com/goldshtn/linux-tracing-workshop), which contains additional labs. There are also many tools in bcc /tools to study.
 
 Please read [CONTRIBUTING-SCRIPTS.md](../CONTRIBUTING-SCRIPTS.md) if you wish to contribute tools to bcc. At the bottom of the main [README.md](../README.md), you'll also find methods for contacting us. Good luck, and happy tracing!
 
-## Networking
 
-To do.
