@@ -267,7 +267,7 @@ while 1:
         exit()
 ```
 
-Things to learn:
+### 해설
 
 1. `bpf_ktime_get_ns()`: Returns the time as nanoseconds. 시스템 부팅 이후로 부터 경과된 nano 시간을 제공한다.  bpf_helper 함수이다.  
 ```c
@@ -281,7 +281,7 @@ Things to learn:
  */
 static __u64 (*bpf_ktime_get_ns)(void) = (void *) 5;
 ```
-2. `BPF_HASH(last)`: Creates a BPF map object that is a hash (associative array), called "last". We didn't specify any further arguments, so it defaults to key and value types of u64. BPF 맵 객체를 만든다. map의 이름만 사용하고, key 값은 unsigined 64를 사용한다.  그런데 이 BPF_HASH는 macro 처럼 보이는데 어디에 이것을 정의하고 있는지 찾을 수 없다.  어딘가에는 있겠지..
+2. `BPF_HASH(last)`: Creates a BPF map objec설t that is a hash (associative array), called "last". We didn't specify any further arguments, so it defaults to key and value types of u64. BPF 맵 객체를 만든다. map의 이름만 사용하고, key 값은 unsigined 64를 사용한다.  그런데 이 BPF_HASH는 macro 처럼 보이는데 어디에 이것을 정의하고 있는지 찾을 수 없다.  어딘가에는 있겠지..
 3. `key = 0`: We'll only store one key/value pair in this hash, where the key is hardwired to zero.
 4. `last.lookup(&key)`: Lookup the key in the hash, and return a pointer to its value if it exists, else NULL. We pass the key in as an address to a pointer. hash 맵에 대해서 key값으로 조회를 해서 valuse가 있으면 pointer가 리턴되고 없으면 NULL이 리턴된다. 
 5. `if (tsp != NULL) {`: The verifier requires that pointer values derived from a map lookup must be checked for a null value before they can be dereferenced and used. 
@@ -300,12 +300,72 @@ static __u64 (*bpf_ktime_get_ns)(void) = (void *) 5;
 
 ## Lesson 5. sync_count.py
 위의 예제에서는 delta 값이  if (delta < 1,000,000,000) ns 이하 일때 만 즉 1초 이하 일때 만 bpf_trace_printk로 출력해서  /sys/kernel/debug/trace/trace_pipe에 출력하도록 하고 있다. 이것을  모두 출력하도록 수정하라는 이야기...
+* count를 기존의 hash 맵에 새로운 key 인덱스 추가해서 BPF 프로그램에 기록할 수 있다.
+* 기존 hash map에 key를 하나 더 추가해서 count 값을 저장하자.
 Modify the sync_timing.py program (prior lesson) to store the count of all kernel sync system calls (both fast and slow), and print it with the output. This count can be recorded in the BPF program by adding a new key index to the existing hash.
 
 
+#### 문제풀이
+```py
+#!/usr/bin/python
 
+from __future__ import print_function
+from bcc import BPF
+from bcc.utils import printb
+
+# load BPF program
+b = BPF(text="""
+#include <uapi/linux/ptrace.h>
+
+BPF_HASH(last);
+
+int do_trace(struct pt_regs *ctx) {
+    u64 ts, *tsp, delta,  *cnt, count;
+    u64  key1 = 0, key2=1;
+
+    // attempt to read stored timestamp
+    tsp = last.lookup(&key1);
+    if (tsp != NULL) {
+        cnt = last.lookup(&key2);
+        if (cnt == NULL){
+            count=1;
+            last.update(&key2, &count);    
+        } else {
+            count=*cnt+1;
+            last.update(&key2, &count);    
+        }
+        delta = bpf_ktime_get_ns() - *tsp;             
+        bpf_trace_printk("[%d][%d] \\n", delta / 1000000 , count);
+        last.delete(&key1);
+    }    
+    // update stored timestamp
+    ts = bpf_ktime_get_ns();
+    last.update(&key1, &ts);
+    return 0;
+}
+""")
+
+b.attach_kprobe(event=b.get_syscall_fnname("sync"), fn_name="do_trace")
+print("Tracing for quick sync's... Ctrl-C to end")
+
+# format output
+start = 0
+while 1:
+    try:
+        (task, pid, cpu, flags, ts, ms) = b.trace_fields()
+        if start == 0:
+            start = ts
+        ts = ts - start
+        printb(b"At time %.2f s: multiple syncs detected, last %s ms ago" % (ts, ms))
+    except KeyboardInterrupt:
+        exit()
+```
+* BPF_HASH에 값을 넣을 때는 map.update(u64 *key,*valuse) 
+* map.lookup(u64 *key) 그리고 이것에 return 에 대해서 NULL 체크를 해야한다. 
 
 ## Lesson 6. disksnoop.py
+* hash map에 key type을 지정해서 생성하는 방법
+* 여기서 부터는 syscall에 붙이는 것이 아니라 kprobe에 붙이려고 한다.  
 
 Browse the [examples/tracing/disksnoop.py](../examples/tracing/disksnoop.py) program to see what is new. Here is some sample output:
 
@@ -345,32 +405,86 @@ void trace_completion(struct pt_regs *ctx, struct request *req) {
 	tsp = start.lookup(&req);
 	if (tsp != 0) {
 		delta = bpf_ktime_get_ns() - *tsp;
-		bpf_trace_printk("%d %x %d\\n", req->__data_len,
-		    req->cmd_flags, delta / 1000);
+		bpf_trace_printk("%d %x %d\\n", req->__data_len, req->cmd_flags, delta / 1000);
 		start.delete(&req);
 	}
 }
 """)
-if BPF.get_kprobe_functions(b'blk_start_request'):
+if BPF.get_kprobe_functions(b"blk_start_request"):
         b.attach_kprobe(event="blk_start_request", fn_name="trace_start")
 b.attach_kprobe(event="blk_mq_start_request", fn_name="trace_start")
-if BPF.get_kprobe_functions(b'__blk_account_io_done'):
+if BPF.get_kprobe_functions(b"__blk_account_io_done"):
     b.attach_kprobe(event="__blk_account_io_done", fn_name="trace_completion")
 else:
-    b.attach_kprobe(event="blk_account_io_done", fn_name="trace_completion")
+    b.attach_kprobe(event="blk_account_io_merge_bio", fn_name="trace_completion")
 [...]
 ```
 
 Things to learn:
 
-1. ```REQ_WRITE```: We're defining a kernel constant in the Python program because we'll use it there later. If we were using REQ_WRITE in the BPF program, it should just work (without needing to be defined) with the appropriate #includes.
-1. ```trace_start(struct pt_regs *ctx, struct request *req)```: This function will later be attached to kprobes. The arguments to kprobe functions are ```struct pt_regs *ctx```, for registers and BPF context, and then the actual arguments to the function. We'll attach this to blk_start_request(), where the first argument is ```struct request *```.
-1. ```start.update(&req, &ts)```: We're using the pointer to the request struct as a key in our hash. What? This is commonplace in tracing. Pointers to structs turn out to be great keys, as they are unique: two structs can't have the same pointer address. (Just be careful about when it gets free'd and reused.) So what we're really doing is tagging the request struct, which describes the disk I/O, with our own timestamp, so that we can time it. There's two common keys used for storing timestamps: pointers to structs, and, thread IDs (for timing function entry to return).
-1. ```req->__data_len```: We're dereferencing members of ```struct request```. See its definition in the kernel source for what members are there. bcc actually rewrites these expressions to be a series of ```bpf_probe_read_kernel()``` calls. Sometimes bcc can't handle a complex dereference, and you need to call ```bpf_probe_read_kernel()``` directly.
+1. `REQ_WRITE`: We're defining a kernel constant in the Python program because we'll use it there later. If we were using REQ_WRITE in the BPF program, it should just work (without needing to be defined) with the appropriate #includes.
+2. `trace_start(struct pt_regs *ctx, struct request *req)`: kprobes에 붙일려고 만든 함수, This function will later be attached to kprobes. The arguments to kprobe functions are `struct pt_regs *ctx`, for registers and BPF context, and then the actual arguments to the function. We'll attach this to blk_start_request(), where the first argument is `struct request *`.
+3. `start.update(&req, &ts)`:  hash map에 데이터를 저장할때 request struct pointer가 uniq하기 때문에 key로 사용하기 좋다. We're using the pointer to the request struct as a key in our hash. What? This is common place in tracing. Pointers to structs turn out to be great keys, as they are unique: two structs can't have the same pointer address. (Just be careful about when it gets free'd and reused.) So what we're really doing is tagging the request struct, which describes the disk I/O, with our own timestamp, so that we can time it. There's two common keys used for storing timestamps: pointers to structs, and, thread IDs (for timing function entry to return).
+4. `req->__data_len`: We're dereferencing members of `struct request`. See its definition in the kernel source for what members are there. bcc actually rewrites these expressions to be a series of `bpf_probe_read_kernel()` calls. Sometimes bcc can't handle a complex dereference, and you need to call `bpf_probe_read_kernel()` directly.
 
 This is a pretty interesting program, and if you can understand all the code, you'll understand many important basics. We're still using the bpf_trace_printk() hack, so let's fix that next.
 
+
+#### Error 발생 
+* 원인이 무엇인지는 모르겠지만 실행이 잘 안된다.
+* trace_completion 프로그램을 blk_account_io_done에 붙일려고 하는데 할 수 없다는 내용 같은데 
+
+```log
+Exception has occurred: Exception       (note: full exception trace is shown but execution is paused at: _run_module_as_main)
+Failed to attach BPF program b'trace_completion' to kprobe b'blk_account_io_done', it's not traceable (either non-existing, inlined, or marked as "notrace")
+  File "/home/jhyunlee/.local/lib/python3.10/site-packages/bcc/__init__.py", line 855, in attach_kprobe
+    raise Exception("Failed to attach BPF program %s to kprobe %s"
+  File "/home/jhyunlee/code/eBPF/bcc/examples/tracing/disksnoop.py", line 52, in <module>
+    b.attach_kprobe(event="blk_account_io_done", fn_name="trace_completion")
+  File "/usr/lib/python3.10/runpy.py", line 86, in _run_code
+    exec(code, run_globals)
+  File "/usr/lib/python3.10/runpy.py", line 196, in _run_module_as_main (Current frame)
+```
+이 오류는 blk_account_io_done에 대한 kprobe를 생성하려고 할 때 trace_completion이라는 BPF 프로그램을 연결하지 못했다는 것을 나타냅니다. 이것은 추적할 수 없는 상태일 수 있습니다. 일반적으로 이러한 문제는 다음 중 하나로 인해 발생합니다.
+
+1. 존재하지 않는 경우: blk_account_io_done 또는 trace_completion 중 하나가 실제로 존재하지 않는 경우.
+2. 인라인 된 경우: blk_account_io_done 또는 trace_completion 중 하나가 인라인되어 추적할 수 없는 경우.
+3. "notrace"로 표시된 경우: 해당 kprobe 또는 BPF 프로그램이 추적되지 않도록 "notrace"로 표시된 경우
+
+그래서 /sys/kernel/debug/tracing/available_* 에서 찾아보면 ...
+
+```log
+root@Good:/sys/kernel/debug/tracing# grep  blk_account_io  avail*
+available_filter_functions:blk_account_io_merge_bio
+available_filter_functions:blk_account_io_completion.part.0
+available_filter_functions_addrs:ffffffff87f77a90 blk_account_io_merge_bio
+available_filter_functions_addrs:ffffffff87f7b5b0 blk_account_io_completion.part.0
+```
+그리고 /proc/kallsysms 에서 찾아보면 
+```
+$ cat /proc/kallsyms | grep blk_account_io_done
+```
+==> 없다. 그래서  blk_account_io_merge_bio를 대신해서 trace kprobe funtion으로 사용한다.  
+
+그러면 잘 동작한다.  
+
+#### system call과 kernel function에 대해서 event attach 방법
+* 여기 예제를 보면 user space에서 kernel로 접근할때 사용하는 System Call 이름은 시스템 마다 달라서 이름을 찾아와서 붙이는 작업을 한다. 
+* 하지만 kernel funtion 같은 경우는 그냥  /sys/kernel/debug/tracing/available_filter_function 에서 찾아서 있으면 그것을 사용하면 됩니다. 
+```
+b.attach_kprobe(event=b.get_syscall_fnname("sync"), fn_name="sync")
+b.attach_kprobe(event=b.get_syscall_fnname("clone"), fn_name="hello")
+b.attach_kprobe(event=b.get_syscall_fnname("sync"), fn_name="do_trace")
+b.attach_kprobe(event="blk_start_request", fn_name="trace_start")
+b.attach_kprobe(event="blk_mq_start_request", fn_name="trace_start")
+b.attach_kprobe(event="blk_account_io_done", fn_name="trace_completion")
+b.attach_kprobe(event="finish_task_switch", fn_name="count_sched")
+```
+
 ## Lesson 7. hello_perf_output.py
+이제 bpf_trace_printK 함수는 그만 사용하고 BPF_PERF_OUTPUT 인터페이스를 사용해서 처리하자.  당연히 trace_feild 함수를 이용해서 문자열을 파싱하는 것도 이제는 그만하자. ㅎㅎ 
+* c program 영역에서 구조체를 만들어서 BPF_PERF_OUTPUT 스트림에 연결한다.
+* python에서는 생성된 스트림에 call back 함수를 생성하여 등록한다. 
 
 Let's finally stop using bpf_trace_printk() and use the proper BPF_PERF_OUTPUT() interface. This will also mean we stop getting the free trace_field() members like PID and timestamp, and will need to fetch them directly. Sample output while commands are run in another session:
 
@@ -440,20 +554,102 @@ while 1:
 
 Things to learn:
 
-1. ```struct data_t```: This defines the C struct we'll use to pass data from kernel to user space.
-1. ```BPF_PERF_OUTPUT(events)```: This names our output channel "events".
-1. ```struct data_t data = {};```: Create an empty data_t struct that we'll then populate.
-1. ```bpf_get_current_pid_tgid()```: Returns the process ID in the lower 32 bits (kernel's view of the PID, which in user space is usually presented as the thread ID), and the thread group ID in the upper 32 bits (what user space often thinks of as the PID). By directly setting this to a u32, we discard the upper 32 bits. Should you be presenting the PID or the TGID? For a multi-threaded app, the TGID will be the same, so you need the PID to differentiate them, if that's what you want. It's also a question of expectations for the end user.
-1. ```bpf_get_current_comm()```: Populates the first argument address with the current process name.
-1. ```events.perf_submit()```: Submit the event for user space to read via a perf ring buffer.
-1. ```def print_event()```: Define a Python function that will handle reading events from the ```events``` stream.
-1. ```b["events"].event(data)```: Now get the event as a Python object, auto-generated from the C declaration.
-1. ```b["events"].open_perf_buffer(print_event)```: Associate the Python ```print_event``` function with the ```events``` stream.
-1. ```while 1: b.perf_buffer_poll()```: Block waiting for events.
+1. `struct data_t`:  커널영역에서 사용자 영역으로 데이터를 전달할때 사용하려는 데이터 구조체를 정의한다.  This defines the C struct we'll use to pass data from kernel to user space.
+2. `BPF_PERF_OUTPUT(events)`: 출력 채널을 정의 한다. 이것은 macro로 정의된것 같은데 어디서 정의해 놨는지를 모르겠음.  This names our output channel "events".
+3. `struct data_t data = {};`:  빈 객체 생성,  Create an empty data_t struct that we'll then populate.
+4. `bpf_get_current_pid_tgid()`: bpf helper 함수이다.  * bpf_get_current_pid_tgid    
+    * Get the current pid and tgid.        
+    ```
+    data.pid = bpf_get_current_pid_tgid() >> 32;
+    data.uid = bpf_get_current_uid_gid() & 0xFFFFFFFF;
+   ```
+    
+5. `bpf_get_current_comm()`: 현재 process의 이름을 이 함수의 첫번째 매개변수의 주소에 채워 넣는다.  Populates the first argument address with the current process name.
+6. `events.perf_submit()`: userspace에서 읽을 수 있도록 링 버퍼를 이용하는 BPF_PERF_OUTPUT(events)에 채워 넣는다.  Submit the event for user space to read via a perf ring buffer.
+7. `def print_event()`: kernel 공간에서 저장한 "event"장치에서 값을 처리할수 있는 handler를 생성한다. 결국 callback 함수를 생성해서 등록한다는 것... Define a Python function that will handle reading events from the `events` stream.
+8. `b["events"].event(data)`: C 프로그램 부분에서 생성한 event data를 python 영역으로 가져와서 참조할 수 있도록 한다.   Now get the event as a Python object, auto-generated from the C declaration.
+9. `b["events"].open_perf_buffer(print_event)`: Python print_event 함수를 events 스트림과 연결합니다. Associate the Python `print_event` function with the `events` stream.
+10. `while 1: b.perf_buffer_poll()`: Block waiting for events.
+
+
+
 
 ## Lesson 8. sync_perf_output.py
 
 Rewrite sync_timing.py, from a prior lesson, to use ```BPF_PERF_OUTPUT```.
+#### 연습문제 풀이. 
+
+```py
+#!/usr/bin/python
+
+from __future__ import print_function
+from bcc import BPF
+from bcc.utils import printb
+
+
+prog="""
+#include <uapi/linux/ptrace.h>
+#include <linux/sched.h>
+
+BPF_HASH(last);
+
+struct data_t {
+    int pid;
+    int uid;
+    u64 ts;
+    u64 delta;
+    char comm[TASK_COMM_LEN];
+};
+
+BPF_PERF_OUTPUT(events);
+
+int do_trace(struct pt_regs *ctx) {
+    u64 ts, *tsp, delta, key = 0;
+    
+    struct data_t data={};
+    data.pid = bpf_get_current_pid_tgid() >> 32;
+    data.uid = bpf_get_current_uid_gid() & 0xFFFFFFFF;
+    data.ts=bpf_ktime_get_ns();
+    bpf_get_current_comm(&data.comm, sizeof(data.comm));
+    
+    // attempt to read stored timestamp
+    tsp = last.lookup(&key);
+    if (tsp != NULL) {
+        data.delta = bpf_ktime_get_ns() - *tsp;                    
+        //bpf_trace_printk("%d\\n", delta / 1000000);
+        events.perf_submit(ctx, &data, sizeof(data));         
+        last.delete(&key);
+    }
+
+    // update stored timestamp
+    ts = bpf_ktime_get_ns();
+    last.update(&key, &ts);
+    return 0;
+}
+"""
+b = BPF(text=prog)
+b.attach_kprobe(event=b.get_syscall_fnname("sync"), fn_name="do_trace")
+print("Tracing for quick sync's... Ctrl-C to end")
+
+# format output
+start = 0
+def print_event(cpu, data, size):
+    global start
+    event = b["events"].event(data)
+    if start == 0:
+        start = event.ts
+    time_s = (float(event.ts - start)) / 1000000000
+    printb(b"[%-18.9f] [%-6d] [%-6d] [%-6d] [%s]" % (time_s, event.pid, event.uid, event.delta, event.comm))
+    #printb(b"%-18.9f %-16s %-6d %s" % (time_s, event.comm, event.pid, b"Hello, perf_output!"))
+
+# loop with callback to print_event
+b["events"].open_perf_buffer(print_event)
+while 1:
+    try:
+        b.perf_buffer_poll()
+    except KeyboardInterrupt:
+        exit()
+```        
 
 ## Lesson 9. bitehist.py
 
