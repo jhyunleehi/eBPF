@@ -8,7 +8,8 @@ from __future__ import print_function
 from bcc import BPF
 from time import sleep
 
-prog="""
+# load BPF program
+b = BPF(text="""
 #include <uapi/linux/ptrace.h>
 #include <linux/blk-mq.h>
 
@@ -21,9 +22,7 @@ int trace_req_done(struct pt_regs *ctx, struct request *req)
     dist_linear.increment(req->__data_len / 1024);
     return 0;
 }
-"""
-
-b = BPF(text=prog)
+""")
 
 if BPF.get_kprobe_functions(b'__blk_account_io_done'):
     b.attach_kprobe(event="__blk_account_io_done", fn_name="trace_req_done")

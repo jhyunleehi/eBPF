@@ -60,6 +60,20 @@ There are six things to learn from this:
 
 6. `.trace_print()`: ptyhon 함수에서 BPF의 trace_print는  /sys/kernel/debug/tracing/trace_pipe에 있는 것을 출력 한다.  A bcc routine that reads trace_pipe and prints the output. 
 
+```py
+def trace_print(self, fmt=None):       
+    while True:
+        if fmt:
+            fields = self.trace_fields(nonblocking=False)
+            if not fields: continue
+            line = fmt.format(*fields)
+        else:
+            line = self.trace_readline(nonblocking=False)
+        print(line)
+        sys.stdout.flush()
+
+```
+
 
 ## Lesson 2. sys_sync()
 
@@ -420,7 +434,8 @@ else:
 [...]
 ```
 
-Things to learn:
+#### 해설: 
+* 중요한 점은 BPF_HASH를 사용하는 이유는 이것이 event handler 처럼 동작하기 때문에 전단계에서 발생한 값을 저장하는 방법이 마땅치 않다는 것이다. 그래서 전 단계에서 발생한 값을 hash에 넣어 놓고 그것을 다음 단계에서 사용할때 바로 이 hash map을 사용한다는 것이다.
 
 1. `REQ_WRITE`: We're defining a kernel constant in the Python program because we'll use it there later. If we were using REQ_WRITE in the BPF program, it should just work (without needing to be defined) with the appropriate #includes.
 2. `trace_start(struct pt_regs *ctx, struct request *req)`: kprobes에 붙일려고 만든 함수, This function will later be attached to kprobes. The arguments to kprobe functions are `struct pt_regs *ctx`, for registers and BPF context, and then the actual arguments to the function. We'll attach this to blk_start_request(), where the first argument is `struct request *`.
@@ -577,7 +592,7 @@ Things to learn:
 ## Lesson 8. sync_perf_output.py
 
 Rewrite sync_timing.py, from a prior lesson, to use ```BPF_PERF_OUTPUT```.
-#### 연습문제 풀이. 
+#### 연습문제 풀이
 
 ```py
 #!/usr/bin/python
@@ -706,20 +721,110 @@ b["dist"].print_log2_hist("kbytes")
 
 A recap from earlier lessons:
 
-- ```kprobe__```: This prefix means the rest will be treated as a kernel function name that will be instrumented using kprobe.
-- ```struct pt_regs *ctx, struct request *req```: Arguments to kprobe. The ```ctx``` is registers and BPF context, the ```req``` is the first argument to the instrumented function: ```blk_account_io_done()```.
-- ```req->__data_len```: Dereferencing that member.
+* `kprobe__`: 커널 함수를 사용한다는 접두사. This prefix means the rest will be treated as a kernel function name that will be instrumented using kprobe.
+* `struct pt_regs *ctx, struct request *req`: Arguments to kprobe. The `ctx` is registers and BPF context, the `req` is the first argument to the instrumented function: `blk_account_io_done()`.
+* 기본으로 제공하는 것은  ctx로 register 상태값을 확인할 수 있다.
+* 실제 계측되어진 kernel 함수의 첫번째 첫번째 인수이다. 
+* `req->__data_len`: Dereferencing that member. __data_len을 역참조 한 값.
+* 여기서  `kprobe__blk_account_io_done` 이함수는 오류가 발생한다. 그래서 `blk_account_io_merge_bio` 이 함수로 수정하고 테스트 한다.  
+
 
 New things to learn:
 
-1. ```BPF_HISTOGRAM(dist)```: Defines a BPF map object that is a histogram, and names it "dist".
-1. ```dist.increment()```: Increments the histogram bucket index provided as first argument by one by default. Optionally, custom increments can be passed as the second argument.
-1. ```bpf_log2l()```: Returns the log-2 of the provided value. This becomes the index of our histogram, so that we're constructing a power-of-2 histogram.
-1. ```b["dist"].print_log2_hist("kbytes")```: Prints the "dist" histogram as power-of-2, with a column header of "kbytes". The only data transferred from kernel to user space is the bucket counts, making this efficient.
+1. `BPF_HISTOGRAM(dist)`: 히스토그램 BPF 맵을 생성한다.  Defines a BPF map object that is a histogram, and names it "dist".
+2. `dist.increment()`: 히스토그램 BPF 맵에서 해당 키 값으로 되었있는 value를 증가 시킨다.  Increments the histogram bucket index provided as first argument by one by default. Optionally, custom increments can be passed as the second argument.
+3. `bpf_log2l()`: log2 값을 출력한다.  Returns the log-2 of the provided value. This becomes the index of our histogram, so that we're constructing a power-of-2 histogram.
+4. `b["dist"].print_log2_hist("kbytes")`: Prints the "dist" histogram as power-of-2, with a column header of "kbytes". The only data transferred from kernel to user space is the bucket counts, making this efficient.
 
 ## Lesson 10. disklatency.py
 
+디스크 I/O 시간을 측정하고 대기 시간에 대한 히스토그램을 인쇄하는 프로그램을 작성하세요. 디스크 I/O 계측 및 타이밍은 이전 강의의 disksnoop.py 프로그램에서 찾을 수 있으며, 히스토그램 코드는 이전 강의의 bithist.py에서 찾을 수 있습니다.
+
 Write a program that times disk I/O, and prints a histogram of their latency. Disk I/O instrumentation and timing can be found in the disksnoop.py program from a prior lesson, and histogram code can be found in bitehist.py from a prior lesson.
+#### 문제풀이
+```py
+#!/usr/bin/python
+#
+# bitehist.py	Block I/O size histogram.
+#		For Linux, uses BCC, eBPF. Embedded C.
+#
+
+from __future__ import print_function
+from bcc import BPF
+from time import sleep
+
+# load BPF program
+prog="""
+#include <uapi/linux/ptrace.h>
+#include <linux/blk-mq.h>
+
+BPF_HISTOGRAM(dist);
+BPF_HISTOGRAM(latency);
+BPF_HASH(start, struct request *);
+
+void trace_req_start(struct pt_regs *ctx, struct request *req) {
+	// stash start timestamp by request ptr
+	u64 ts = bpf_ktime_get_ns();
+	start.update(&req, &ts);
+}
+
+void trace_req_done(struct pt_regs *ctx, struct request *req){
+    u64 *tsp, delta;    
+   	tsp = start.lookup(&req);
+	if (tsp != 0) {
+		delta = bpf_ktime_get_ns() - *tsp;		
+        latency.increment(bpf_log2l(delta / 1000000));    
+		start.delete(&req);
+	} 
+    dist.increment(bpf_log2l(req->__data_len / 1024));        
+}
+"""
+b = BPF(text=prog)
+b.attach_kprobe(event="blk_mq_start_request", fn_name="trace_req_start")
+b.attach_kprobe(event="blk_account_io_merge_bio", fn_name="trace_req_done")
+
+# header
+print("Tracing... Hit Ctrl-C to end.")
+
+# trace until Ctrl-C
+try:
+    sleep(99999999)
+except KeyboardInterrupt:
+    print()
+
+# output
+print("log2 histogram")
+print("~~~~~~~~~~~~~~")
+b["dist"].print_log2_hist("kbytes")
+b["latency"].print_log2_hist("ms")
+```
+* BPF_HASH의 목적은 변수를 bcc에서 시작과 종료 사이에 계측이 필요한 값이 있다면 그것을 저장하기 위한 목적이다.
+* 시작과 종료가 있다면 그것의  req* 값은 동일한 것을 사용하기 때문에 좋은 key 후보가 된다. 이렇게 하는 이유는 io 요청이 비동기 적으로 쏟아져 들어오고 그것의 종료 시점이 서로 다르기 때문에  두개의 event가 서로 동기 되지 않은 상태에서 동작하기 때문에 두개를 묶어 줄수 있는 방법이 필요하다. 
+* 그리고 struct request 이것이 실제 어떻게 된 구조체 인지 알고 싶은데 잘 알기 어렵다.  
+
+
+#### request 객체 정의가 이렇게 되어 잇다. 
+```c
+struct xsk_tx_metadata {
+	__u64 flags;
+
+	union {
+		struct {
+			/* XDP_TXMD_FLAGS_CHECKSUM */
+
+			/* Offset from desc->addr where checksumming should start. */
+			__u16 csum_start;
+			/* Offset from csum_start where checksum should be stored. */
+			__u16 csum_offset;
+		} request;
+
+		struct {
+			/* XDP_TXMD_FLAGS_TIMESTAMP */
+			__u64 tx_timestamp;
+		} completion;
+	};
+};
+```
 
 ## Lesson 11. vfsreadlat.py
 
