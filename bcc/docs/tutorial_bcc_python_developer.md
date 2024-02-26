@@ -803,7 +803,7 @@ b["latency"].print_log2_hist("ms")
 * 그리고 struct request 이것이 실제 어떻게 된 구조체 인지 알고 싶은데 잘 알기 어렵다.  
 
 
-#### request 객체 정의가 이렇게 되어 잇다. 
+#### request 객체 정의
 ```c
 struct xsk_tx_metadata {
 	__u64 flags;
@@ -868,11 +868,20 @@ Tracing... Hit Ctrl-C to end.
 [...]
 ```
 
+#### c 프로그램과 Python 프로그램 분리 
+* 이렇게 분리되어 있으니 코드 추적도 편하고 좋네..
+* 여기서는 attach_kprobe, attach_kretprobe 이렇게 시작과 종료를 나눠서 추적하는 구나...
+```py
+b = BPF(src_file = "vfsreadlat.c")
+b.attach_kprobe(event="vfs_read", fn_name="do_entry")
+b.attach_kretprobe(event="vfs_read", fn_name="do_return")
+```
+
 Browse the code in [examples/tracing/vfsreadlat.py](../examples/tracing/vfsreadlat.py) and [examples/tracing/vfsreadlat.c](../examples/tracing/vfsreadlat.c). Things to learn:
 
-1. ```b = BPF(src_file = "vfsreadlat.c")```: Read the BPF C program from a separate source file.
-1. ```b.attach_kretprobe(event="vfs_read", fn_name="do_return")```: Attaches the BPF C function ```do_return()``` to the return of the kernel function ```vfs_read()```. This is a kretprobe: instrumenting the return from a function, rather than its entry.
-1. ```b["dist"].clear()```: Clears the histogram.
+1. `b = BPF(src_file = "vfsreadlat.c")`: Read the BPF C program from a separate source file.
+2. `b.attach_kretprobe(event="vfs_read", fn_name="do_return")`: Attaches the BPF C function ```do_return()``` to the return of the kernel function ```vfs_read()```. This is a kretprobe: instrumenting the return from a function, rather than its entry.
+3. `b["dist"].clear()`: Clears the histogram.
 
 ## Lesson 12. urandomread.py
 
