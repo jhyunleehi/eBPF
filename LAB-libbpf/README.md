@@ -1,5 +1,8 @@
 # libbpf
 
+* [Haruband's CodeBook 를 참고](https://velog.io/@haruband/eBPF-BPF-%EC%8B%A4%ED%96%89%ED%8C%8C%EC%9D%BC-%EB%A1%9C%EB%94%A9-%EA%B3%BC%EC%A0%95-%EB%B6%84%EC%84%9D-%EB%A9%94%EB%AA%A8%EB%A6%AC-%EC%9E%AC%EB%B0%B0%EC%B9%98#:~:text=%EB%B6%84%EC%84%9D%20(%EB%A9%94%EB%AA%A8%EB%A6%AC%20%EC%9E%AC%EB%B0%B0%EC%B9%98)-,Haruband%27s%20CodeBook,-%C2%B72021%EB%85%84)
+
+## CO-RE (compile Once -Run everywherer)
 https://github.com/libbpf/libbpf
 
 Libbpf 신뢰할 수 있는 소스 코드는 linutools/lib/bpf 정기적으로 Github에 동기화됩니다. 
@@ -221,7 +224,6 @@ Machine is Linux BPF. Hence, this binary code is meant to be run inside the BPF 
 There is BTF information included in this file. BTF is the metadata format which encodes the debug info related to BPF programs/maps. This debug info is used for map pretty print, function signatures, etc.
 After the section header named .text in the table, there are four executable sections starting with tracepoint. These correspond to four BPF programs.
 
-
 Let's find those four programs in the BPF source code. In the second tab, </> Editor, you can open the file opensnoop.bpf.c - our kernel-space program (KSP). Scroll down to find four different functions with names beginning with int tracepoint__syscalls.... You should find them on lines 50, 68, 125 and 131.
 
 Each of these is preceded by a SEC() macro which corresponds to the executable sections listed by readelf. It defines the eBPF hook where the code should be attached to (SEC("tracepoint/<category>/<name>")). In our case to the eBPF tracepoints sys_enter_open and sys_enter_openat, as our eBPF code should be called whenever a open and openat syscall is issued ("entered", therefore sys_enter). Tracepoints are static markers in the kernel’s code that you can use to attach (eBPF) code in a running kernel. These tracepoint are often placed in locations which are interesting or common locations to measure performance.
@@ -230,6 +232,9 @@ If you'd like to get even more details about what these four BPF programs are do
 
 But how does this fit together with the Linux kernel? Click on Next to find out in the next section.
 
+
+
+## BPF 실행 파일 로딩과정 분석 
 
 
 
