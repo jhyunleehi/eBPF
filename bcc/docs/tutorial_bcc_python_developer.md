@@ -109,6 +109,7 @@ while True:
     printb(b"%-18.9f %-16s %-6d %s" % (ts, task, pid, msg))
     printb(b"%18.9f %16s %6d %s" % (ts, task, pid, msg))
 ```
+### 해설
 * 이것을 간단한게 구현해 보면 다른 출력들과 섞어져서  나온다는 점이 좀 그렇다.
 * /sys/kernel/debug/tracing/trace_pipe 내용으로 출력이 나온 것을 다시 읽어서 python 라이브러리로 나오게 한다
 * kernel에서 나오는 데이터 들은 byte 데이터 들이라서 이것을 byte로 처리하는 작업들이 필요하다. 
@@ -159,6 +160,7 @@ while 1:
         exit()
     printb(b"%-18.9f %-16s %-6d %s" % (ts, task, pid, msg))
 ```
+### 해설
 
 This is similar to hello_world.py, and traces new processes via sys_clone() again, but has a few more things to learn:
 
@@ -170,7 +172,7 @@ This is similar to hello_world.py, and traces new processes via sys_clone() agai
 
 4. `b.trace_fields()`: BPF.trace_fields()함수를 호출하면 /sys/kernel/debug/tracing/trace_pipe에서 고정된 필드의 집합을 돌려 준다? 아무튼 나중에서는 BPF_PERF_OUPUT을 사용한다는 것이다.   Returns a fixed set of fields from trace_pipe. Similar to trace_print(), this is handy for hacking, but for real tooling we should switch to BPF_PERF_OUTPUT().
 
-#### BPF.trace_fields
+### BPF.trace_fields
 아래 코드를 보면 trace_readline을 nonblocking 모드로 읽어와서..
 
   ```py
@@ -319,7 +321,7 @@ static __u64 (*bpf_ktime_get_ns)(void) = (void *) 5;
 Modify the sync_timing.py program (prior lesson) to store the count of all kernel sync system calls (both fast and slow), and print it with the output. This count can be recorded in the BPF program by adding a new key index to the existing hash.
 
 
-#### 문제풀이
+### 문제풀이
 ```py
 #!/usr/bin/python
 
@@ -434,7 +436,7 @@ else:
 [...]
 ```
 
-#### 해설: 
+### 해설: 
 * 중요한 점은 BPF_HASH를 사용하는 이유는 이것이 event handler 처럼 동작하기 때문에 전단계에서 발생한 값을 저장하는 방법이 마땅치 않다는 것이다. 그래서 전 단계에서 발생한 값을 hash에 넣어 놓고 그것을 다음 단계에서 사용할때 바로 이 hash map을 사용한다는 것이다.
 
 1. `REQ_WRITE`: We're defining a kernel constant in the Python program because we'll use it there later. If we were using REQ_WRITE in the BPF program, it should just work (without needing to be defined) with the appropriate #includes.
@@ -475,7 +477,7 @@ available_filter_functions:blk_account_io_completion.part.0
 available_filter_functions_addrs:ffffffff87f77a90 blk_account_io_merge_bio
 available_filter_functions_addrs:ffffffff87f7b5b0 blk_account_io_completion.part.0
 ```
-그리고 /proc/kallsysms 에서 찾아보면 
+그리고 kernel 심볼 /proc/kallsysms 에서 찾아보면 
 ```
 $ cat /proc/kallsyms | grep blk_account_io_done
 ```
@@ -567,7 +569,7 @@ while 1:
     b.perf_buffer_poll()
 ```
 
-Things to learn:
+### 해설
 
 1. `struct data_t`:  커널영역에서 사용자 영역으로 데이터를 전달할때 사용하려는 데이터 구조체를 정의한다.  This defines the C struct we'll use to pass data from kernel to user space.
 2. `BPF_PERF_OUTPUT(events)`: 출력 채널을 정의 한다. 이것은 macro로 정의된것 같은데 어디서 정의해 놨는지를 모르겠음.  This names our output channel "events".
@@ -729,7 +731,7 @@ A recap from earlier lessons:
 * 여기서  `kprobe__blk_account_io_done` 이함수는 오류가 발생한다. 그래서 `blk_account_io_merge_bio` 이 함수로 수정하고 테스트 한다.  
 
 
-New things to learn:
+### 해설
 
 1. `BPF_HISTOGRAM(dist)`: 히스토그램 BPF 맵을 생성한다.  Defines a BPF map object that is a histogram, and names it "dist".
 2. `dist.increment()`: 히스토그램 BPF 맵에서 해당 키 값으로 되었있는 value를 증가 시킨다.  Increments the histogram bucket index provided as first argument by one by default. Optionally, custom increments can be passed as the second argument.
@@ -741,7 +743,8 @@ New things to learn:
 디스크 I/O 시간을 측정하고 대기 시간에 대한 히스토그램을 인쇄하는 프로그램을 작성하세요. 디스크 I/O 계측 및 타이밍은 이전 강의의 disksnoop.py 프로그램에서 찾을 수 있으며, 히스토그램 코드는 이전 강의의 bithist.py에서 찾을 수 있습니다.
 
 Write a program that times disk I/O, and prints a histogram of their latency. Disk I/O instrumentation and timing can be found in the disksnoop.py program from a prior lesson, and histogram code can be found in bitehist.py from a prior lesson.
-#### 문제풀이
+
+### 문제풀이
 ```py
 #!/usr/bin/python
 #
@@ -803,7 +806,7 @@ b["latency"].print_log2_hist("ms")
 * 그리고 struct request 이것이 실제 어떻게 된 구조체 인지 알고 싶은데 잘 알기 어렵다.  
 
 
-#### request 객체 정의
+### request 객체 정의
 ```c
 struct xsk_tx_metadata {
 	__u64 flags;
@@ -924,36 +927,225 @@ while 1:
         continue
     print("%-18.9f %-16s %-6d %s" % (ts, task, pid, msg))
 ```
+* `bpf_trace_printk` 함수는 /usr/include/bpf.h에 정의 되어 있음 
 
-Things to learn:
+### TRACEPOINT_PROBE(category, event)
+* catagory:event 방식으로 설정된 trace point를 정의한다.  
+* This is a macro that instruments the tracepoint defined by category:event.
+* The tracepoint name is <category>:<event>. The probe function name is tracepoint__<category>__<event>.
+* Arguments are available in an args struct, which are the tracepoint arguments. 
+* One way to list these is to cat the relevant format file under /sys/kernel/debug/tracing/events/category/event/format.
+* pytho에서 사용하면 자동으로 이 함수가 attach 된다. 
+The args struct can be used in place of ctx in each functions requiring a context as an argument. This includes notably perf_submit().
 
-1. ```TRACEPOINT_PROBE(random, urandom_read)```: Instrument the kernel tracepoint ```random:urandom_read```. These have a stable API, and thus are recommend to use instead of kprobes, wherever possible. You can run ```perf list``` for a list of tracepoints. Linux >= 4.7 is required to attach BPF programs to tracepoints.
-1. ```args->got_bits```: ```args``` is auto-populated to be a structure of the tracepoint arguments. The comment above says where you can see that structure. Eg:
-
+For example:
 ```
-# cat /sys/kernel/debug/tracing/events/random/urandom_read/format
-name: urandom_read
-ID: 972
+TRACEPOINT_PROBE(random, urandom_read) {
+    // args is from /sys/kernel/debug/tracing/events/random/urandom_read/format
+    bpf_trace_printk("%d\\n", args->got_bits);
+    return 0;
+}
+```
+This instruments the tracepoint random:urandom_read tracepoint, and prints the tracepoint argument got_bits. When using Python API, this probe is automatically attached to the right tracepoint target. For C++, this tracepoint probe can be attached by specifying the tracepoint target and function name explicitly: BPF::attach_tracepoint("random:urandom_read", "tracepoint__random__urandom_read") Note the name of the probe function defined above is tracepoint__random__urandom_read.
+
+#### error 
+* 일단 이 코드는 다음과 같은 에러가 발생한다.  
+* 컴파일 에러 발생인데...
+```
+Exception has occurred: Exception       (note: full exception trace is shown but execution is paused at: _run_module_as_main)
+Failed to compile BPF module <text>
+  File "/home/jhyunlee/.local/lib/python3.10/site-packages/bcc/__init__.py", line 479, in __init__   raise Exception("Failed to compile BPF module %s" % (src_file or "<text>"))
+  File "/home/jhyunlee/code/eBPF/bcc/docs/lesson12.urandomread.py", line 10, in <module>    b = BPF(text="""  File "/usr/lib/python3.10/runpy.py", line 86, in _run_code   exec(code, run_globals)
+  File "/usr/lib/python3.10/runpy.py", line 196, in _run_module_as_main (Current frame)    return _run_code(code, main_globals, None,
+Exception: Failed to compile BPF module <text>
+```
+
+#### random:urandom_read 심볼 찾기
+* 없네...
+```
+root@Good:/sys/kernel/debug/tracing# sudo trace-cmd list | grep random
+syscalls:sys_exit_getrandom
+syscalls:sys_enter_getrandom
+
+root@Good:/sys/kernel/debug/tracing# grep  random_read avail*
+available_filter_functions:random_read_iter
+available_filter_functions:urandom_read_iter
+```
+#### 코드 수정 
+* random event에 대해서는 trace event가 없어서 sys_enter_clone으로 위치를 변경해서 테스트 해본다. 
+
+```c
+TRACEPOINT_PROBE(syscalls, sys_enter_clone) {
+    // args is from /sys/kernel/debug/tracing/events/syscalls/sys_enter_clone/format
+    bpf_trace_printk("%d\\n", args->parent_tidptr);
+    return 0;
+}
+```
+
+### 해설
+
+1. `TRACEPOINT_PROBE(random, urandom_read)`: Instrument the kernel tracepoint ```random:urandom_read```. These have a stable API, and thus are recommend to use instead of kprobes, wherever possible. You can run ```perf list``` for a list of tracepoints. Linux >= 4.7 is required to attach BPF programs to tracepoints.
+==> 여기서 random:urandom_read는 잘 되어서 다른 event 중에서 하나를 골라서 대체해서 테스트 한다.   `TRACEPOINT_PROBE(syscalls, sys_enter_clone)`
+2. `args->parent_tidptr`: `args` 는 마크로 함수를 통해서 자동으로 생성되는 arg이므로 참조할 수 있는데 이것의 format은 `format`을 통해서 확인 할 수 있다.  is auto-populated to be a structure of the tracepoint arguments. The comment above says where you can see that structure. Eg:
+
+```sh
+# cat /sys/kernel/debug/tracing/events/syscalls/sys_enter_clone/format
+name: sys_enter_clone
+ID: 124
 format:
 	field:unsigned short common_type;	offset:0;	size:2;	signed:0;
 	field:unsigned char common_flags;	offset:2;	size:1;	signed:0;
 	field:unsigned char common_preempt_count;	offset:3;	size:1;	signed:0;
 	field:int common_pid;	offset:4;	size:4;	signed:1;
 
-	field:int got_bits;	offset:8;	size:4;	signed:1;
-	field:int pool_left;	offset:12;	size:4;	signed:1;
-	field:int input_left;	offset:16;	size:4;	signed:1;
+	field:int __syscall_nr;	offset:8;	size:4;	signed:1;
+	field:unsigned long clone_flags;	offset:16;	size:8;	signed:0;
+	field:unsigned long newsp;	offset:24;	size:8;	signed:0;
+	field:int * parent_tidptr;	offset:32;	size:8;	signed:0;
+	field:int * child_tidptr;	offset:40;	size:8;	signed:0;
+	field:unsigned long tls;	offset:48;	size:8;	signed:0;
 
-print fmt: "got_bits %d nonblocking_pool_entropy_left %d input_entropy_left %d", REC->got_bits, REC->pool_left, REC->input_left
+print fmt: "clone_flags: 0x%08lx, newsp: 0x%08lx, parent_tidptr: 0x%08lx, child_tidptr: 0x%08lx, tls: 0x%08lx", ((unsigned long)(REC->clone_flags)), ((unsigned long)(REC->newsp)), ((unsigned long)(REC->parent_tidptr)), ((unsigned long)(REC->child_tidptr)), ((unsigned long)(REC->tls))
 ```
 
-In this case, we were printing the ```got_bits``` member.
+In this case, we were printing the `parent_tidptr` member.
 
 ## Lesson 13. disksnoop.py fixed
 
-Convert disksnoop.py from a previous lesson to use the ```block:block_rq_issue``` and ```block:block_rq_complete``` tracepoints.
+Convert disksnoop.py from a previous lesson to use the `block:block_rq_issue` and `block:block_rq_complete` tracepoints.
+
+* 일단 block:block_rq_issue 가 있는지 확인 해본다.  : 
+
+```sh
+$ sudo  trace-cmd list | grep block_rq_issue
+block:block_rq_issue
+
+root@Good:/sys/kernel/debug/tracing# grep  block_rq_issue  avail*
+available_events:block:block_rq_issue
+
+root@Good:/sys/kernel/debug/tracing/events/block/block_rq_issue# ls
+enable  filter  format  hist  id  inject  trigger
+
+root@Good:/sys/kernel/debug/tracing# grep  block:block_rq_complete avail*
+available_events:block:block_rq_complete
+
+root@Good:/sys/kernel/debug/tracing/events/block/block_rq_complete# ls -l
+합계 0
+-rw-r----- 1 root root 0  2월 27 21:26 enable
+-rw-r----- 1 root root 0  2월 27 21:26 filter
+-r--r----- 1 root root 0  2월 27 21:26 format
+-r--r----- 1 root root 0  2월 27 21:26 hist
+-r--r----- 1 root root 0  2월 27 21:26 id
+--w------- 1 root root 0  2월 27 21:26 inject
+-rw-r----- 1 root root 0  2월 27 21:26 trigger
+```
+
+* block_rq_issue 
+```
+root@Good:/sys/kernel/debug/tracing/events/block/block_rq_issue# cat format 
+name: block_rq_issue
+ID: 1231
+format:
+	field:unsigned short common_type;	offset:0;	size:2;	signed:0;
+	field:unsigned char common_flags;	offset:2;	size:1;	signed:0;
+	field:unsigned char common_preempt_count;	offset:3;	size:1;	signed:0;
+	field:int common_pid;	offset:4;	size:4;	signed:1;
+
+	field:dev_t dev;	offset:8;	size:4;	signed:0;
+	field:sector_t sector;	offset:16;	size:8;	signed:0;
+	field:unsigned int nr_sector;	offset:24;	size:4;	signed:0;
+	field:unsigned int bytes;	offset:28;	size:4;	signed:0;
+	field:char rwbs[8];	offset:32;	size:8;	signed:0;
+	field:char comm[16];	offset:40;	size:16;	signed:0;
+	field:__data_loc char[] cmd;	offset:56;	size:4;	signed:0;
+
+print fmt: "%d,%d %s %u (%s) %llu + %u [%s]", ((unsigned int) ((REC->dev) >> 20)), ((unsigned int) ((REC->dev) & ((1U << 20) - 1))), REC->rwbs, REC->bytes, __get_str(cmd), (unsigned long long)REC->sector, REC->nr_sector, REC->comm
+
+
+root@Good:/sys/kernel/debug/tracing/events/block/block_rq_complete# cat format 
+name: block_rq_complete
+ID: 1234
+format:
+	field:unsigned short common_type;	offset:0;	size:2;	signed:0;
+	field:unsigned char common_flags;	offset:2;	size:1;	signed:0;
+	field:unsigned char common_preempt_count;	offset:3;	size:1;	signed:0;
+	field:int common_pid;	offset:4;	size:4;	signed:1;
+
+	field:dev_t dev;	offset:8;	size:4;	signed:0;
+	field:sector_t sector;	offset:16;	size:8;	signed:0;
+	field:unsigned int nr_sector;	offset:24;	size:4;	signed:0;
+	field:int error;	offset:28;	size:4;	signed:1;
+	field:char rwbs[8];	offset:32;	size:8;	signed:0;
+	field:__data_loc char[] cmd;	offset:40;	size:4;	signed:0;
+
+print fmt: "%d,%d %s (%s) %llu + %u [%d]", ((unsigned int) ((REC->dev) >> 20)), ((unsigned int) ((REC->dev) & ((1U << 20) - 1))), REC->rwbs, __get_str(cmd), (unsigned long long)REC->sector, REC->nr_sector, REC->error
+```
+
+* error 
+```
+/virtual/main.c:33:16: warning: incompatible pointer types passing 'struct tracepoint__bokck__block_rq_complete *' to parameter of type 'struct request **' [-Wincompatible-pointer-types]
+                start.delete(args);
+                             ^~~~
+```
+==> 원인은 이 macro TRACEPOINT_PROBE(block,block_rq_complete)의 리턴 값이  'struct tracepoint__bokck__block_rq_complete *'으로 정의 되어 있는데...  이것을  BPF_HASH를 선언할때 BPF_HASH(start,struct request *); 이렇게 해서 그렇다. 그래서 이것을 맞춰 주면 된다.  
+
+### 문제풀이
+* format 파일에서 정의한 모든 내용이 나오는 것은 아니다. 
+```py
+#!/usr/bin/python
+
+from __future__ import print_function
+from bcc import BPF
+from bcc.utils import printb
+
+REQ_WRITE = 1		# from include/linux/blk_types.h
+
+# load BPF program
+prog="""
+#include <uapi/linux/ptrace.h>
+#include <linux/blk-mq.h>
+
+BPF_HASH(start, int);
+
+TRACEPOINT_PROBE(block,block_rq_issue) {	
+	u64 ts = bpf_ktime_get_ns();	
+    u32 dev = args->dev;
+    u64 sector = args->sector;
+    u32 nr_sector = args->nr_sector;
+    bpf_trace_printk("rq_issue [%u] [%llu] [%u]\\n",dev, sector, nr_sector);
+	return 0;
+}
+
+TRACEPOINT_PROBE(block,block_rq_complete) {
+	u64 *tsp, delta;	
+    u32 dev = args->dev;
+    u64 sector = args->sector;
+    u32 nr_sector = args->nr_sector;
+    bpf_trace_printk("rq_complete [%u] [%llu] [%u]\\n",dev, sector, nr_sector);    
+	return 0;
+}
+"""
+b=BPF(text=prog)
+# header
+print("%-18s %-2s %-7s %8s" % ("TIME(s)", "T", "BYTES", "LAT(ms)"))
+
+b.trace_print()
+
+# format output
+while 1:
+	try:
+		(id, dev, sector, nr_sector) = b.trace_fields()		
+	
+		print(id, dev, sector, nr_sector)
+	except KeyboardInterrupt:
+		exit()
+```
+
 
 ## Lesson 14. strlen_count.py
+* user level의 strlen 함수 라이브러리를 얼마나 호출했는지를 확인하는 방법
+* user level의 심볼을 참조해서 처리하려고하는 handler를 연결하는 방법으로 구현한다.  
+
 
 This program instruments a user-level function, the ```strlen()``` library function, and frequency counts its string argument. Example output:
 
@@ -979,7 +1171,7 @@ Tracing strlen()... Hit Ctrl-C to end.
        340 "\x01\x1b]0;root@bgregg-test: ~\x07\x02root@bgregg-test:~# "
 ```
 
-These are various strings that are being processed by this library function while tracing, along with their frequency counts. ```strlen()``` was called on "LC_ALL" 12 times, for example.
+These are various strings that are being processed by this library function while tracing, along with their frequency counts. `strlen()` was called on "LC_ALL" 12 times, for example.
 
 Code is [examples/tracing/strlen_count.py](../examples/tracing/strlen_count.py):
 
@@ -1031,10 +1223,36 @@ for k, v in sorted(counts.items(), key=lambda counts: counts[1].value):
     print("%10d \"%s\"" % (v.value, k.c.encode('string-escape')))
 ```
 
-Things to learn:
+### 해설
 
-1. ```PT_REGS_PARM1(ctx)```: This fetches the first argument to ```strlen()```, which is the string.
-1. ```b.attach_uprobe(name="c", sym="strlen", fn_name="count")```: Attach to library "c" (if this is the main program, use its pathname), instrument the user-level function ```strlen()```, and on execution call our C function ```count()```.
+1. `PT_REGS_PARM1(ctx)`: This fetches the first argument to `strlen()`, which is the string.
+2. `bpf_probe_read_user(&key.c, sizeof(key.c), (void *)PT_REGS_PARM1(ctx))`:  user 주소 공간에 있는 데이터를 BPF stack으로 NULL로 끝나는 문자열로 복사해 온다. 그래서 BPF에서는 user 공간의 데이터를 사용할 수 있게 된다. 만약 복사하려는 문자열이 size 보다 크면 len-1 크기로 복사하고 NULL로 끝나는 문자열을 복사한다.  문자열이 복사하려는 크기보다 작은 경우는 target은 NULL로 채워 지지 않는다. 이렇게 코딩되어 있어서 그런가 보다. 
+```
+void strcpy(char *s, char *t){
+    while(*s++){
+        *t=*s;
+    }
+}
+```
+3. `val = counts.lookup_or_try_init(&key, &zero);` 생성된 map인 count 객체에 &key 값이 있으면 리턴해주고, 없으면  두번째 변수로 초기화 한다.  
+4. `b.attach_uprobe(name="c", sym="strlen", fn_name="count")`: Attach to library "c" (if this is the main program, use its pathname), instrument the user-level function `strlen()`, and on execution call our C function `count()`.
+
+
+#### PT_REGS_PARM macro
+
+attach_uprobe를 통해서 attach된 것은 매개변수로 struct pt_regs가 들어오고 이렇게 들어온 user probe 된 매개 변수를 체크하는 것은 PT_REGS_PARM macro를 통해서 가능하다. 
+
+```
+int count(struct pt_regs *ctx) {
+    char buf[64];
+    bpf_probe_read_user(&buf, sizeof(buf), (void *)PT_REGS_PARM1(ctx));
+    bpf_trace_printk("%s %d", buf, PT_REGS_PARM2(ctx));
+    return(0);
+}
+```
+
+
+
 
 ## Lesson 15. nodejs_http_server.py
 
@@ -1087,11 +1305,14 @@ b = BPF(text=bpf_text, usdt_contexts=[u])
 
 Things to learn:
 
-1. ```bpf_usdt_readarg(6, ctx, &addr)```: Read the address of argument 6 from the USDT probe into ```addr```.
-1. ```bpf_probe_read_user(&path, sizeof(path), (void *)addr)```: Now the string ```addr``` points to into our ```path``` variable.
-1. ```u = USDT(pid=int(pid))```: Initialize USDT tracing for the given PID.
-1. ```u.enable_probe(probe="http__server__request", fn_name="do_trace")```: Attach our ```do_trace()``` BPF C function to the Node.js ```http__server__request``` USDT probe.
-1. ```b = BPF(text=bpf_text, usdt_contexts=[u])```: Need to pass in our USDT object, ```u```, to BPF object creation.
+1. `bpf_usdt_readarg(6, ctx, &addr)`: Read the address of argument 6 from the USDT probe into ```addr```.
+2. `bpf_probe_read_user(&path, sizeof(path), (void *)addr)`: Now the string `addr` points to into our `path` variable.
+3. `u = USDT(pid=int(pid))`: Initialize USDT tracing for the given PID.
+4. `u.enable_probe(probe="http__server__request", fn_name="do_trace")`: Attach our `do_trace()` BPF C function to the Node.js `http__server__request` USDT probe.
+5. `b = BPF(text=bpf_text, usdt_contexts=[u])`: Need to pass in our USDT object, `u`, to BPF object creation.
+
+
+* 뭔가 리소스를 식별하고 event에 handler를 붙이는 작업을 하는 그런 공통 과정 
 
 ## Lesson 16. task_switch.c
 
@@ -1164,3 +1385,156 @@ For further study, see Sasha Goldshtein's [linux-tracing-workshop](https://githu
 Please read [CONTRIBUTING-SCRIPTS.md](../CONTRIBUTING-SCRIPTS.md) if you wish to contribute tools to bcc. At the bottom of the main [README.md](../README.md), you'll also find methods for contacting us. Good luck, and happy tracing!
 
 
+## tool 
+
+### kprobe event 어떻게 발견하는가?
+* kprobe 
+```sh
+$ sudo apt install linux-tools-common
+$ sudo apt install linux-tools-generic
+$ sudo apt install linux-tools-6.5.0-18-generic
+$ sudo apt install trace-cmd
+$ sudo trace-cmd list -l | grep  exec
+workqueue:workqueue_execute_end
+workqueue:workqueue_execute_start
+sched:sched_process_exec
+sched:sched_kthread_work_execute_end
+sched:sched_kthread_work_execute_start
+syscalls:sys_exit_kexec_load
+syscalls:sys_enter_kexec_load
+syscalls:sys_exit_kexec_file_load
+syscalls:sys_enter_kexec_file_load
+syscalls:sys_exit_execveat
+syscalls:sys_enter_execveat
+syscalls:sys_exit_execve
+syscalls:sys_enter_execve
+writeback:writeback_exec
+libata:ata_exec_command
+```
+### ftrace 가능한 커널 함수 목록
+```sh
+root@Good:/sys/kernel/debug/tracing# grep  blk_account_io  avail*
+available_filter_functions:blk_account_io_merge_bio
+available_filter_functions:blk_account_io_completion.part.0
+available_filter_functions_addrs:ffffffff87f77a90 blk_account_io_merge_bio
+available_filter_functions_addrs:ffffffff87f7b5b0 blk_account_io_completion.part.0
+```
+
+### trace argement format 
+*  /sys/kernel/debug/tracing/events/random/urandom_read/format 디렉토리에서  format 파일을 통해 argument format를 찾을 수 있다.  
+
+```c
+// from /sys/kernel/debug/tracing/events/random/urandom_read/format
+struct urandom_read_args {    
+    u64 __unused__;
+    u32 got_bits;
+    u32 pool_left;
+    u32 input_left;
+};
+```
+
+### trace-cmd
+```
+$ sudo trace-cmd list | grep bio
+block:block_bio_remap
+block:block_bio_queue
+block:block_bio_frontmerge
+block:block_bio_backmerge
+block:block_bio_bounce
+block:block_bio_complete
+```
+
+### SYSCALL 목록 확인
+* 현재 kernel의 system call 목록과 이름 확인 
+```
+$ grep   __SYSCALL /usr/include/asm-generic/unistd.h
+$ grep   clone  /usr/include/asm-generic/unistd.h
+
+#define __NR_clone 220
+__SYSCALL(__NR_clone, sys_clone)
+#define __NR_clone3 435
+__SYSCALL(__NR_clone3, sys_clone3)
+
+```
+### 커널 심볼 
+```
+$ cat /proc/kallsyms | grep blk_account_io_done
+```
+
+### iotop 
+```
+source code
+```
+
+### BPF_HASH
+* 제일 궁금한 것은 BPF_HASH(counter_table) 이것이 어디에 정의 되어 있는가?
+* BPF_HASH() is a BCC macro that defines a hash table map. 라고 하는데 어디에 정의되어 있는지를 모르겠네..
+* 무슨 소스 코드가 이렇게 되어 있냐?
+  - You can navigate to the src/cc directory and find the bpf_helpers.h file where the BPF_HASH() macro is defined
+  - The source code for the BPF_HASH() macro in BCC (BPF Compiler Collection) can be found in the BCC GitHub repository. 
+  - BCC is an open-source project, and its source code is hosted on GitHub. 
+  - You can find the definition of the BPF_HASH() macro in the bpf_helpers.h header file within the BCC repository.
+  - 이것이 macro 인데 실제 파일에 가서 보면  
+* bcc repository에서  소스 코드가 이렇게 되어 있는 것은 무엇을 의미하냐 ?  R"********(  
+이런 사연이 있었구만 ...
+
+소스 코드가 `R"********(`와 같은 형태로 시작되는 것은 C++11부터 도입된 Raw String Literal 문법을 나타냅니다. 이 문법을 사용하면 문자열을 이스케이프 문자 없이 그대로 표현할 수 있습니다. "********"는 임의의 종료 문자열로, 소스 코드 내에서 나오는 문자열이 이 문자열로 끝나는 것을 나타냅니다.
+
+`bcc/src/export/helpers.h` 에 정의된 내용 을 보면 BPF_F_TABLE macro로 정의한 것을 사용한다. 
+
+```c
+R"********(
+
+#define BPF_F_TABLE(_table_type, _key_type, _leaf_type, _name, _max_entries, _flags) \
+struct _name##_table_t { \
+  _key_type key; \
+  _leaf_type leaf; \
+  _leaf_type * (*lookup) (_key_type *); \
+  _leaf_type * (*lookup_or_init) (_key_type *, _leaf_type *); \
+  _leaf_type * (*lookup_or_try_init) (_key_type *, _leaf_type *); \
+  int (*update) (_key_type *, _leaf_type *); \
+  int (*insert) (_key_type *, _leaf_type *); \
+  int (*delete) (_key_type *); \
+  void (*call) (void *, int index); \
+  void (*increment) (_key_type, ...); \
+  void (*atomic_increment) (_key_type, ...); \
+  int (*get_stackid) (void *, u64); \
+  void * (*sk_storage_get) (void *, void *, int); \
+  int (*sk_storage_delete) (void *); \
+  void * (*inode_storage_get) (void *, void *, int); \
+  int (*inode_storage_delete) (void *); \
+  void * (*task_storage_get) (void *, void *, int); \
+  int (*task_storage_delete) (void *); \
+  u32 max_entries; \
+  int flags; \
+}; \
+__attribute__((section("maps/" _table_type))) \
+struct _name##_table_t _name = { .flags = (_flags), .max_entries = (_max_entries) }; \
+BPF_ANNOTATE_KV_PAIR(_name, _key_type, _leaf_type)
+
+
+
+#define BPF_TABLE(_table_type, _key_type, _leaf_type, _name, _max_entries) \
+BPF_F_TABLE(_table_type, _key_type, _leaf_type, _name, _max_entries, 0)
+
+
+#define BPF_HASH1(_name) \
+  BPF_TABLE("hash", u64, u64, _name, 10240)
+#define BPF_HASH2(_name, _key_type) \
+  BPF_TABLE("hash", _key_type, u64, _name, 10240)
+#define BPF_HASH3(_name, _key_type, _leaf_type) \
+  BPF_TABLE("hash", _key_type, _leaf_type, _name, 10240)
+#define BPF_HASH4(_name, _key_type, _leaf_type, _size) \
+  BPF_TABLE("hash", _key_type, _leaf_type, _name, _size)
+
+// helper for default-variable macro function
+#define BPF_HASHX(_1, _2, _3, _4, NAME, ...) NAME
+
+
+// Define a hash function, some arguments optional
+// BPF_HASH(name, key_type=u64, leaf_type=u64, size=10240)
+#define BPF_HASH(...) \
+  BPF_HASHX(__VA_ARGS__, BPF_HASH4, BPF_HASH3, BPF_HASH2, BPF_HASH1)(__VA_ARGS__)
+
+
+```
