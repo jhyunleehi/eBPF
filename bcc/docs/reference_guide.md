@@ -149,7 +149,7 @@ This section describes the C part of a bcc program.
 
 Syntax: kprobe__*kernel_function_name*
 
-`kprobe__` is a special prefix that creates a kprobe (dynamic tracing of a kernel function call) for the kernel function name provided as the remainder. You can also use kprobes by declaring a normal C function, then using the Python `BPF.attach_kprobe()` (covered later) to associate it with a kernel function.
+```kprobe__``` is a special prefix that creates a kprobe (dynamic tracing of a kernel function call) for the kernel function name provided as the remainder. You can also use kprobes by declaring a normal C function, then using the Python ```BPF.attach_kprobe()``` (covered later) to associate it with a kernel function.
 
 Arguments are specified on the function declaration: kprobe__*kernel_function_name*(struct pt_regs *ctx [, *argument1* ...])
 

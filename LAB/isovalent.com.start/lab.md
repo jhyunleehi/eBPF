@@ -223,7 +223,7 @@ struct {
 
 #### 159 번 xlated id dump
 
-```sh
+```log
 # bpftool  prog dum xlated id 159 linum
 int tracepoint__syscalls__sys_enter_open(struct trace_event_raw_sys_enter * ctx):
 ; int tracepoint__syscalls__sys_enter_open(struct trace_event_raw_sys_enter* ctx) [file:/opt/ebpf/bcc/libbpf-tools/opensnoop.bpf.c line_num:50 line_col:0]

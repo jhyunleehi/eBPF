@@ -17,7 +17,7 @@ from bcc.utils import printb
 REQ_WRITE = 1		# from include/linux/blk_types.h
 
 # load BPF program
-prog="""
+b = BPF(text="""
 #include <uapi/linux/ptrace.h>
 #include <linux/blk-mq.h>
 
@@ -41,15 +41,15 @@ void trace_completion(struct pt_regs *ctx, struct request *req) {
 		start.delete(&req);
 	}
 }
-"""
-b=BPF(text=prog)
-if BPF.get_kprobe_functions(b"blk_start_request"):
-    b.attach_kprobe(event="blk_start_request", fn_name="trace_start")
+""")
+
+if BPF.get_kprobe_functions(b'blk_start_request'):
+        b.attach_kprobe(event="blk_start_request", fn_name="trace_start")
 b.attach_kprobe(event="blk_mq_start_request", fn_name="trace_start")
-if BPF.get_kprobe_functions(b"__blk_account_io_done"):
+if BPF.get_kprobe_functions(b'__blk_account_io_done'):
     b.attach_kprobe(event="__blk_account_io_done", fn_name="trace_completion")
 else:
-    b.attach_kprobe(event="blk_account_io_merge_bio", fn_name="trace_completion")
+    b.attach_kprobe(event="blk_account_io_done", fn_name="trace_completion")
 
 # header
 print("%-18s %-2s %-7s %8s" % ("TIME(s)", "T", "BYTES", "LAT(ms)"))
