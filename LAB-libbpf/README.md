@@ -28,7 +28,9 @@ libbpf git 위치:  git://git.kernel.org/pub/scm/linux/kernel/git/bpf/bpf-next.g
 * [Tips & tricks for writing libbpf-tools](https://en.pingcap.com/blog/tips-and-tricks-for-writing-linux-bpf-applications-with-libbpf)
 
 
-## [eBPF] CO-RE (Compile Once - Run Everywhere) 기능 분석
+## 1. [eBPF] CO-RE (Compile Once - Run Everywhere) 기능 분석
+
+https://velog.io/@haruband/eBPF-CO-RE-Compile-Once-Run-Everywhere-%EA%B8%B0%EB%8A%A5-%EB%B6%84%EC%84%9D
 
 최근 몇 년간 리눅스 커널 커뮤니티에서 가장 주목받고 있는 기술은 누가 뭐래도 eBPF 일 것이다. 리눅스 커널에 안정성과 확장성, 그리고 생산성을 동시에 부여하는 혁신적인 기술로, 대표적인 쿠버네티스의 CNI 인 Cilium과 Falco, Pixie 등 다양한 오픈소스 프로젝트의 기반 기술로 이미 자리잡고 있으며, 점점 더 활용분야를 넓혀나가고 있다. 
 
@@ -210,11 +212,36 @@ $ file  .output/runqslower.bpf.o
 .output/runqslower.bpf.o: ELF 64-bit LSB relocatable, eBPF, version 1 (SYSV), not stripped
 
 $ readelf --section-details --headers .output/runqslower.bpf.o
-
 $ objdump -x  .output/runqslower.bpf.o
 
 
+$ file  .output/runqslower.bpf.o 
+.output/runqslower.bpf.o: ELF 64-bit LSB relocatable, eBPF, version 1 (SYSV), not stripped
+
+jhyunlee@Good:~/code/bcc/libbpf-tools$ readelf -h -s  .output/runqslower.bpf.o
+ELF Header:
+  Magic:   7f 45 4c 46 02 01 01 00 00 00 00 00 00 00 00 00 
+  Class:                             ELF64
+  Data:                              2's complement, little endian
+  Version:                           1 (current)
+  OS/ABI:                            UNIX - System V
+  ABI Version:                       0
+  Type:                              REL (Relocatable file)
+  Machine:                           Linux BPF
+  Version:                           0x1
+  Entry point address:               0x0
+  Start of program headers:          0 (bytes into file)
+  Start of section headers:          40144 (bytes into file)
+  Flags:                             0x0
+  Size of this header:               64 (bytes)
+  Size of program headers:           0 (bytes)
+  Number of program headers:         0
+  Size of section headers:           64 (bytes)
+  Number of section headers:         25
+  Section header string table index: 1
 ```
+  
+
 
 The object file is in ELF format. ELF stands for "Executable and Linkable Format" and it represents a common standard file format for executable files, object code, shared libraries, and core dumps. It's also the standard file format for binary files on x86 processors.
 
@@ -234,7 +261,131 @@ But how does this fit together with the Linux kernel? Click on Next to find out 
 
 
 
-## BPF 실행 파일 로딩과정 분석 
+## 2. [eBPF] BPF 실행파일 로딩 과정 분석 (메모리 재배치)
+
+https://velog.io/@haruband/eBPF-BPF-%EC%8B%A4%ED%96%89%ED%8C%8C%EC%9D%BC-%EB%A1%9C%EB%94%A9-%EA%B3%BC%EC%A0%95-%EB%B6%84%EC%84%9D-%EB%A9%94%EB%AA%A8%EB%A6%AC-%EC%9E%AC%EB%B0%B0%EC%B9%98
+
+
+BPF 는 일반적인 프로그램과 유사한 방식으로 개발하기 때문에 유사한 실행파일 및 메모리 구조를 가지고 있지만, 커널 안에서 제한된 환경으로 실행되기 때문에 로딩(loading)하는 과정은 상당히 다르다. 
+* BPF 의 실행파일 및 메모리 구조
+* 로딩하는 과정에 대해 분석
+
+일반적인 실행파일에서 가장 중요한 두 가지는 코드와 데이터이다. 
+* 코드는 말그대로 상위언어를 컴파일한 머신코드를 의미하고, 
+* 데이터는 실행시 코드가 참조하는 메모리를 의미한다. 
+* 데이터는 
+    - 스택과 힙같이 실행시 메모리가 할당/해제되는 동적 데이터
+	- 전역변수처럼 코드에서 선언되는 정적 데이터
+	- 정적 데이터는 실행파일을 로딩할 때 메모리가 할당되고 해당 메모리를 참조하는 코드도 재배치(relocation)된다. 
+	- 정적 데이터는 크게 읽기전용 변수, 초기화된 전역변수 그리고 초기화되지 않은 전역변수로 구분
+
+
+```c
+int data0 = 1;
+int data1 = 1;
+int bss0;
+const char rodata0[] = "ebpf";
+
+SEC("tp_btf/sched_switch")
+int handle__sched_switch(u64 *ctx)
+{
+  /* TP_PROTO(bool preempt, struct task_struct *prev,
+   *      struct task_struct *next)
+   */
+  struct task_struct *prev = (struct task_struct *)ctx[1];
+  struct task_struct *next = (struct task_struct *)ctx[2];
+  struct event event = {};
+  u64 *tsp, delta_us;
+  long state;
+  u32 pid;
+
+  /* ivcsw: treat like an enqueue event and store timestamp */
+  if (prev->state == data1)
+    trace_enqueue(prev->tgid, prev->pid);
+
+  pid = next->pid;
+  ...
+}
+```
+
+* 코드에서 사용된 SEC
+```
+SEC("tp_btf/sched_wakeup")
+SEC("tp_btf/sched_wakeup_new")
+SEC("tp_btf/sched_switch")
+SEC("raw_tp/sched_wakeup")
+SEC("raw_tp/sched_wakeup_new")
+SEC("raw_tp/sched_switch")
+SEC("license") = "GPL";
+```
+
+```log
+$ objdump -x  .output/runqslower.bpf.o 
+
+.output/runqslower.bpf.o:     file format elf64-little
+.output/runqslower.bpf.o
+architecture: UNKNOWN!, flags 0x00000011:
+HAS_RELOC, HAS_SYMS
+start address 0x0000000000000000
+
+architecture: bpfel
+start address: 0x0000000000000000
+
+Program Header:
+
+Dynamic Section:
+Sections:
+Idx Name                        Size     VMA              Type
+  0                             00000000 0000000000000000
+  1 .text                       00000000 0000000000000000 TEXT
+  2 tp_btf/sched_wakeup         000000f8 0000000000000000 TEXT
+  3 tp_btf/sched_wakeup_new     000000f8 0000000000000000 TEXT
+  4 tp_btf/sched_switch         00000318 0000000000000000 TEXT
+  5 .rodata                     00000015 0000000000000000 DATA
+  6 .data                       00000008 0000000000000000 DATA
+  7 .maps                       00000038 0000000000000000 DATA
+  8 license                     00000004 0000000000000000 DATA
+  9 .bss                        00000004 0000000000000000 BSS
+ 10 .BTF                        00005e0c 0000000000000000
+ 11 .BTF.ext                    0000068c 0000000000000000
+ 12 .symtab                     000002a0 0000000000000000
+ 13 .reltp_btf/sched_wakeup     00000030 0000000000000000
+ 14 .reltp_btf/sched_wakeup_new 00000030 0000000000000000
+ 15 .reltp_btf/sched_switch     00000080 0000000000000000
+ 16 .rel.BTF                    000000a0 0000000000000000
+ 17 .rel.BTF.ext                00000630 0000000000000000
+ 18 .llvm_addrsig               00000009 0000000000000000
+ 19 .strtab                     0000017c 0000000000000000
+
+SYMBOL TABLE:
+0000000000000000 g     O .bss   0000000000000004 bss0
+0000000000000000 g     O .data  0000000000000004 data0
+0000000000000004 g     O .data  0000000000000004 data1
+0000000000000000 g     F tp_btf/sched_switch    0000000000000318 handle__sched_switch
+0000000000000010 g     O .rodata        0000000000000005 rodata0
+
+```
+
+### objdump 해설 
+리눅스에서 주로 사용하는 ELF 실행파일 구조이고, 용도에 따라 다양한 섹션으로 구성되어 있다. 
+* 심볼 테이블을 보면 
+    - 읽기전용 변수인 rodata0 은 읽기전용 데이터 섹션인 .rodata 에 속해있고, 
+	- 초기화된 전역변수인 data0 과 data1 은 .data 섹션
+	- 초기화되지 않은 전역변수인 bss0 은 .bss 섹션에 포함
+* .data 섹션과 .bss 섹션의 차이점은 
+    - .data 섹션은 실제 초기값들을 실행파일 안에 포함하고 있지만, 
+	- .bss 섹션은 초기값이 없기 때문에 실행파일 안은 비어있고 로딩 시에 메모리를 할당받은 후 0 으로 초기화한다.
+
+일반적인 프로그램을 실행할 때는 .data, .rodata, 그리고 .bss 섹션까지 프로세스의 가상 주소 공간에 필요한 메모리를 할당받아 실행파일로부터 필요한 데이터를 복사한 후 로딩 작업을 마무리하지만, BPF 는 커널 주소 공간에서 실행되기 때문에 강도 높은 안정성과 보안성을 위해 다른 방식으로 로딩 작업을 진행한다. 이후 자세한 로딩 과정은 libbpf를 기준으로 설명하도록 하겠다.
+
+우선, BPF 실행파일의 .data, .rodata, 그리고 .bss 섹션을 각각 BPF 맵(map)으로 만든다. BPF 맵은 사용자 코드와 BPF 코드가 데이터를 공유하는 가장 보편적인 방식으로, .data 와 .rodata 섹션은 BPF 맵을 만든 다음 실행파일의 각 섹션에 있는 데이터를 복사하고, .bss 섹션은 0 으로 초기화되어 있는 BPF 맵을 만든다. 그리고 각 섹션에 있는 변수를 참조하는 코드를 재배치해야 하는데, 우선 앞의 예제에서 data1 변수를 참조하는 부분의 코드를 살펴보자.
 
 
 
+
+
+## 3. [eBPF] BPF 실행파일 로딩 과정 분석 (서브프로그램)
+https://velog.io/@haruband/eBPF-BPF-%EC%8B%A4%ED%96%89%ED%8C%8C%EC%9D%BC-%EB%A1%9C%EB%94%A9-%EA%B3%BC%EC%A0%95-%EB%B6%84%EC%84%9D-%EC%84%9C%EB%B8%8C%ED%94%84%EB%A1%9C%EA%B7%B8%EB%9E%A8
+
+### 4. [eBPF] BPF 실행파일 로딩 과정 분석 (JIT)
+https://velog.io/@haruband/eBPF-BPF-%EC%8B%A4%ED%96%89%ED%8C%8C%EC%9D%BC-%EB%A1%9C%EB%94%A9-%EA%B3%BC%EC%A0%95-%EB%B6%84%EC%84%9D-JIT
