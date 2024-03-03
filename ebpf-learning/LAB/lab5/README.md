@@ -1,5 +1,9 @@
 # CO-RE compile once,run everywhere 
 
+지난 장에서 BTF(BPF 타입 포맷)를 처음 접했습니다. 이번 장에서는 BTF가 왜 필요하며, 어떻게 하면 eBPF 프로그램을 다양한 커널 버전 간에 이식 가능하게 만드는 데 사용되는지에 대해 논의합니다. BPF의 일회 컴파일, 어디서든 실행(CO-RE) 접근 방식의 중요한 부분입니다. 이는 서로 다른 커널 버전 간에 eBPF 프로그램을 이식하는 문제를 해결합니다.
+많은 eBPF 프로그램이 커널 데이터 구조에 접근하며, eBPF 프로그래머는 해당 데이터 구조 내 필드를 올바르게 찾기 위해 관련된 Linux 헤더 파일을 포함해야 합니다. 그러나 Linux 커널은 지속적으로 개발되고 있기 때문에 내부 데이터 구조는 다른 커널 버전 간에 변경될 수 있습니다. 따라서 한 기계에서 컴파일된 eBPF 오브젝트 파일을 다른 커널 버전이 있는 기계에 로드한다면 데이터 구조가 동일할 보장이 없습니다.
+CO-RE 접근 방식은 이러한 이식성 문제를 효율적으로 해결하는 큰 진전입니다. 이는 eBPF 프로그램이 컴파일된 데이터 구조 레이아웃에 대한 정보를 포함하도록 허용하며, 대상 기계에서 데이터 구조 레이아웃이 다른 경우 필드 액세스 방법을 조정하는 메커니즘을 제공합니다. 프로그램이 대상 기계의 커널에 존재하지 않는 필드나 데이터 구조에 액세스하려고 하는 경우를 제외하고는, 프로그램은 서로 다른 커널 버전 간에 이식 가능합니다.
+
 ## BCC’s Approach to Portability
 
 eBPF 프로그램의 기본적인 "Hello World" 예제를 보여주기 위해 BCC를 사용했습니다. BCC 프로젝트는 eBPF 프로그램을 구현하기 위한 최초의 인기 있는 프로젝트로, 커널 경험이 많지 않은 프로그래머들에게 비교적 접근하기 쉬운 사용자 공간 및 커널 측면의 프레임워크를 제공했습니다. 커널 간 이식성을 해결하기 위해 BCC는 대상 기계에서 런타임에서 eBPF 코드를 인접하게 컴파일하는 방식을 채택했습니다. 이 접근 방식에는 여러 가지 문제점이 있습니다:
@@ -112,25 +116,46 @@ root@Good:~# bpftool btf dump id  255
 섹션 정의는 eBPF 프로그램이 어디에 연결되어야 하는지를 선언하고, 그런 다음 프로그램 자체가 이어집니다. 이전처럼, eBPF 프로그램 자체는 C 함수로 작성됩니다. 예제 코드에서는 이를 hello()라고 하며, 이전 장에서 보았던 hello() 함수와 매우 유사합니다. 이전 버전과 여기 버전 간의 차이를 고려해 보겠습니다:
 
 ```c
+struct {
+    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
+    __uint(key_size, sizeof(u32));
+    __uint(value_size, sizeof(u32));
+} output SEC(".maps");
+
+struct user_msg_t {
+   char message[12];
+};
+
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(max_entries, 10240);
+    __type(key, u32);
+    __type(value, struct user_msg_t);
+} my_config SEC(".maps");
+
 SEC("ksyscall/execve")
 int BPF_KPROBE_SYSCALL(hello, const char *pathname)
 {
-struct data_t data = {};
-struct user_msg_t *p;
-data.pid = bpf_get_current_pid_tgid() >> 32;
-data.uid = bpf_get_current_uid_gid() & 0xFFFFFFFF;
-bpf_get_current_comm(&data.command, sizeof(data.command));
-bpf_probe_read_user_str(&data.path, sizeof(data.path), pathname);
-p = bpf_map_lookup_elem(&my_config, &data.uid);
-if (p != 0) {
-bpf_probe_read_kernel(&data.message, sizeof(data.message), p->message);
-} else {
-bpf_probe_read_kernel(&data.message, sizeof(data.message), message);
+   struct data_t data = {}; 
+   struct user_msg_t *p;
+
+   data.pid = bpf_get_current_pid_tgid() >> 32;
+   data.uid = bpf_get_current_uid_gid() & 0xFFFFFFFF;
+
+   bpf_get_current_comm(&data.command, sizeof(data.command));
+   bpf_probe_read_user_str(&data.path, sizeof(data.path), pathname);
+
+   p = bpf_map_lookup_elem(&my_config, &data.uid);
+   if (p != 0) {
+      bpf_probe_read_kernel_str(&data.message, sizeof(data.message), p->message);
+   } else {
+      bpf_probe_read_kernel_str(&data.message, sizeof(data.message), message); 
+   }
+
+   bpf_perf_event_output(ctx, &output, BPF_F_CURRENT_CPU, &data, sizeof(data));   
+   return 0;
 }
-bpf_perf_event_output(ctx, &output, BPF_F_CURRENT_CPU,
-&data, sizeof(data));
-return 0;
-}
+
 ```
 
 

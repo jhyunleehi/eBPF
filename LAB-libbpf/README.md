@@ -381,9 +381,6 @@ SYMBOL TABLE:
 우선, BPF 실행파일의 .data, .rodata, 그리고 .bss 섹션을 각각 BPF 맵(map)으로 만든다. BPF 맵은 사용자 코드와 BPF 코드가 데이터를 공유하는 가장 보편적인 방식으로, .data 와 .rodata 섹션은 BPF 맵을 만든 다음 실행파일의 각 섹션에 있는 데이터를 복사하고, .bss 섹션은 0 으로 초기화되어 있는 BPF 맵을 만든다. 그리고 각 섹션에 있는 변수를 참조하는 코드를 재배치해야 하는데, 우선 앞의 예제에서 data1 변수를 참조하는 부분의 코드를 살펴보자.
 
 
-
-
-
 ## 3. [eBPF] BPF 실행파일 로딩 과정 분석 (서브프로그램)
 https://velog.io/@haruband/eBPF-BPF-%EC%8B%A4%ED%96%89%ED%8C%8C%EC%9D%BC-%EB%A1%9C%EB%94%A9-%EA%B3%BC%EC%A0%95-%EB%B6%84%EC%84%9D-%EC%84%9C%EB%B8%8C%ED%94%84%EB%A1%9C%EA%B7%B8%EB%9E%A8
 
