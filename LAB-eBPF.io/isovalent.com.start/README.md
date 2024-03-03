@@ -7,8 +7,34 @@ $ cd  cd  bcc/libbpf-tools
 $ make opensnoop
 $ ./opensnoop
 ```
+사용자 공간 프로그램(USP)은 커널 공간 프로그램을 선언하고 해당 추적점/프로브에 연결합니다.
+커널 공간 프로그램(KSP)은 추적점/프로브를 만나면 트리거되고 커널 내에서 실행됩니다. 여기에 실제 eBPF 로직이 구현됩니다.
+이 두 프로그램은 서로 직접 통신할 수 없으므로(설계상), 데이터를 교환하기 위해 버퍼가 필요합니다. eBPF의 경우 다양한 유형의 BPF 맵을 통해 구현됩니다.
+
+opensnoop 이라는 컴파일된 이진 파일을 실행하려면 CAP_BPF Linux 능력이 필요합니다. 이는 우리의 논리가 특권 있는 BPF 작업(예: eBPF 코드를 커널에 로드)을 사용하기 때문에 필수적이며 동시에 많은 Linux 배포판에서 특권 없는 eBPF를 허용하지 않기 때문입니다. CAP_BPF 능력은 Linux 커널 5.8 이후부터 사용 가능하며 모든 유형의 BPF 프로그램을 로드하고 대부분의 맵 유형을 생성하며 BTF를 로드하고 프로그램과 맵을 반복하는 등의 작업을 허용합니다. CAP_SYS_ADMIN 능력이 과부화되어 있는 BPF 기능을 분리하기 위해 도입되었습니다.
+
+그러나 이 데모 환경에서는 이미 루트로 실행 중이기 때문에 이는 문제가 되지 않습니다. opensnoop를 실행하세요.
 
 ## 2. Ojbect file 
+
+객체 파일은 ELF 형식입니다. ELF는 "실행 가능 및 링크 가능 형식"을 나타내며 실행 파일, 오브젝트 코드, 공유 라이브러리 및 코어 덤프에 대한 공통 표준 파일 형식을 나타냅니다. 또한 x86 프로세서의 이진 파일에 대한 표준 파일 형식입니다.
+
+주목할 몇 가지 흥미로운 점:
+
+머신은 Linux BPF입니다. 따라서 이 바이너리 코드는 BPF 인커널 가상 머신 내에서 실행될 목적입니다.
+이 파일에는 BTF 정보가 포함되어 있습니다. BTF는 BPF 프로그램/맵에 관련된 디버그 정보를 인코딩하는 메타데이터 형식입니다. 이 디버그 정보는 맵 프리티 프린트, 함수 시그니처 등에 사용됩니다.
+테이블에서 .text라는 섹션 헤더 뒤에는 tracepoint로 시작하는 네 개의 실행 가능한 섹션이 있습니다. 이것들은 네 개의 BPF 프로그램에 해당합니다.
+BPF 소스 코드에서 이 네 가지 프로그램을 찾아 봅시다. 두 번째 탭인 </> Editor에서 opensnoop.bpf.c 파일을 열어보세요 - 우리의 커널 스페이스 프로그램 (KSP). 50, 68, 125 및 131번째 줄에서 시작하는 int tracepoint__syscalls....라는 이름의 네 가지 다른 함수를 찾을 수 있어야 합니다.
+
+각각은 readelf에 나열된 실행 가능한 섹션에 해당하는 SEC() 매크로로 시작합니다. 
+* 코드가 첨부될 eBPF 후크를 정의합니다 (SEC("tracepoint/<category>/<name>")). 
+* 우리의 경우 open 및 openat 시스템 호출이 발생할 때마다 이 코드가 호출되어야 하므로 ("entered", 따라서 sys_enter). 
+* Tracepoint는 커널의 코드에서 정적 표식으로 커널의 실행 중에 (eBPF) 코드를 첨부할 수 있는 위치에 배치됩니다. 
+
+이러한 tracepoint는 성능을 측정하는 데 흥미로운 위치 또는 일반적인 위치에 자주 배치됩니다.
+* tracepoint__syscalls__sys_enter_open tracepoint__syscalls__sys_enter_openat 함수는 open()/openat() 시스템 호출이 발생할 때마다 실행됩니다. 
+* 그런 다음 이 호출의 인수 (파일 이름 등)를 구문 분석하여이 정보를 BPF 맵에 작성합니다. 그런 다음 컴파일된 opensnoop.c 바이너리 부분 - 우리의 유저 스페이스 프로그램 (USP) -이 정보를 읽어서 STDOUT에 인쇄할 수 있습니다.
+
 
 #### readelf 
 * BPF 프로그램이 실제 어떻게 적재될지 정의  
@@ -130,6 +156,63 @@ char LICENSE[] SEC("license") = "GPL";
 * They then parse the arguments (filename, etc.) of the call and write this information to the BPF map. 
 * From there, our compiled opensnoop.c binary part - our user-space program (USP) - can read and print it to STDOUT.
 
+#### SEC("kprobe")  SEC("tracepoint")
+```
+SEC("kprobe/blk_account_io_start")
+int BPF_KPROBE(blk_account_io_start, struct request *req){...}
+
+SEC("kprobe/blk_account_io_done")
+int BPF_KPROBE(blk_account_io_done, struct request *req){...}
+
+SEC("kprobe/__blk_account_io_start")
+int BPF_KPROBE(__blk_account_io_start, struct request *req){...}
+
+SEC("kprobe/__blk_account_io_done")
+int BPF_KPROBE(__blk_account_io_done, struct request *req){...}
+
+SEC("tp_btf/block_io_start")
+int BPF_PROG(block_io_start, struct request *req){...}
+
+SEC("tp_btf/block_io_done")
+int BPF_PROG(block_io_done, struct request *req){...}
+
+SEC("tracepoint/syscalls/sys_enter_openat")
+int tracepoint__syscalls__sys_enter_openat(struct trace_event_raw_sys_enter* ctx) {...}
+
+SEC("tracepoint/syscalls/sys_enter_open")
+int tracepoint__syscalls__sys_enter_open(struct trace_event_raw_sys_enter* ctx){...}
+
+SEC("tracepoint/syscalls/sys_enter_openat")
+int tracepoint__syscalls__sys_enter_openat(struct trace_event_raw_sys_enter* ctx){...}
+
+SEC("tracepoint/syscalls/sys_exit_open")
+int tracepoint__syscalls__sys_exit_open(struct trace_event_raw_sys_exit* ctx){...}
+
+SEC("tracepoint/syscalls/sys_exit_openat")
+int tracepoint__syscalls__sys_exit_openat(struct trace_event_raw_sys_exit* ctx){...}
+
+SEC("tp_btf/block_rq_insert")
+int block_rq_insert_btf(u64 *ctx){...}
+
+SEC("tp_btf/block_rq_issue")
+int block_rq_issue_btf(u64 *ctx){...}
+
+SEC("tp_btf/block_rq_complete")
+int BPF_PROG(block_rq_complete_btf, struct request *rq, int error, unsigned int nr_bytes){..}
+
+SEC("raw_tp/block_rq_insert")
+int BPF_PROG(block_rq_insert){...}
+
+SEC("raw_tp/block_rq_issue")
+int BPF_PROG(block_rq_issue){...}
+
+SEC("raw_tp/block_rq_complete")
+int BPF_PROG(block_rq_complete, struct request *rq, int error, unsigned int nr_bytes){...}
+
+
+
+```
+
 ## bpftool 
 *  tool for inspection and simple manipulation of eBPF programs and maps
 *  `$ bpftool prog list`
@@ -152,9 +235,9 @@ SYNOPSIS
 ```
 
 
-#### bpftool prog list
+### bpftool prog list
 
-```
+```log
 # opensnoop 
 # bpftool prog list 
 159: tracepoint  name tracepoint__syscalls__sys_enter_open  tag 07014be5359438f8  gpl
@@ -178,8 +261,9 @@ SYNOPSIS
         btf_id 111
         pids opensnoop(2658)
 ```
-#### bpftool map list
-```
+### bpftool map list
+* 여기서 사용하는 map은 start, events 2개  
+```log
 # bpftool map list
 28: hash  name start  flags 0x0
         key 4B  value 16B  max_entries 10240  memlock 245760B
@@ -267,3 +351,17 @@ int tracepoint__syscalls__sys_enter_open(struct trace_event_raw_sys_enter * ctx)
   28: (b7) r0 = 0
   29: (95) exit
   ```
+
+
+  ## Add your won trace message 
+
+eBPF 프로그램은 디버깅 목적으로 추적 메시지를 작성할 수 있습니다. 간단한 예제의 경우에는 일반적으로 /sys/kernel/debug/tracing/trace_pipe에서 읽을 수 있는 trace_pipe를 통해 수행됩니다. 그러나 이에는 몇 가지 제한 사항이 있습니다: 최대 3개의 인수, trace_pipe는 전역적으로 공유됩니다(따라서 동시에 실행되는 프로그램에서는 출력이 충돌할 수 있음) 등. 그러한 이유로, 생산적인 eBPF 코드에는 사용하지 않는 것이 좋습니다. 대신 BPF_PERF_OUTPUT() 인터페이스를 통해 수행해야 합니다. 그럼에도 불구하고, 이번 실습에서는 간단함을 위해 trace_pipe를 통해 수행하고 opensnoop에 자체 메시지를 추가합니다.
+
+
+다음 문장을 opensnoop.bpf.c에 추가한다. 
+ `bpf_printk("Hello world");`
+ 그리고 `make opensnoop` 하고 실행해 보면 .. 그리고 그 결과는  `cat /sys/kernel/debug/tracing/trace_pipe`를 통해서 확인한다. 
+
+```sh
+# cat /sys/kernel/debug/tracing/trace_pipe
+```
