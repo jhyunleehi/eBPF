@@ -548,3 +548,4 @@ python3-bpfcc (0.18.0+ds-2)를 제거합니다...
 * explorer : ctl-shift-e
 * reveal file in explorer : ctl-shift-p type reveal 
 
+
