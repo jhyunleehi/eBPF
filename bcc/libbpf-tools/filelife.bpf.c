@@ -81,8 +81,7 @@ int BPF_KPROBE(vfs_open, struct path *path, struct file *file)
 }
 
 SEC("kprobe/security_inode_create")
-int BPF_KPROBE(security_inode_create, struct inode *dir,
-	     struct dentry *dentry)
+int BPF_KPROBE(security_inode_create, struct inode *dir, struct dentry *dentry)
 {
 	return probe_create(dentry);
 }
