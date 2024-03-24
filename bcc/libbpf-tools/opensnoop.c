@@ -361,8 +361,7 @@ int main(int argc, char **argv)
 	printf("\n");
 
 	/* setup event callbacks */
-	pb = perf_buffer__new(bpf_map__fd(obj->maps.events), PERF_BUFFER_PAGES,
-			      handle_event, handle_lost_events, NULL, NULL);
+	pb = perf_buffer__new(bpf_map__fd(obj->maps.events), PERF_BUFFER_PAGES, handle_event, handle_lost_events, NULL, NULL);
 	if (!pb) {
 		err = -errno;
 		fprintf(stderr, "failed to open perf buffer: %d\n", err);
